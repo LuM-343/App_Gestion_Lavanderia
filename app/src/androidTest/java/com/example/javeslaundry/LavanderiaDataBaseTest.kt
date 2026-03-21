@@ -53,6 +53,7 @@ class LavanderiaDatabaseTest {
         // 4. Imprimimos los resultados para tu captura de pantalla
         println("=========================================")
         println("   PRUEBA DE BASE DE DATOS LAVANDERÍA    ")
+        println(" Ahora estoy HAHA ")
         println("=========================================")
         println("-> Cliente insertado exitosamente con ID: $idGenerado")
         println("-> Total de clientes en BD: ${clientesGuardados.size}")
