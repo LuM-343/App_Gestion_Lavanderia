@@ -3,26 +3,38 @@ package com.example.javeslaundry
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.javeslaundry.ui.theme.JavesLaundryTheme
-
+import androidx.compose.runtime.*
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
         setContent {
             JavesLaundryTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
+                var pantalla by remember { mutableStateOf("principal") }
+
+                when (pantalla) {
+                    "principal" -> PantallaPrincipal(
+                        onClientesClick = { pantalla = "clientes" },
+                        onLavadasClick = { pantalla = "lavadas" }
+                    )
+                    "clientes" -> PantallaClientes(
+                        clientes = emptyList(),
+                        onAgregarClick = { },
+                        onClienteClick = { }
+                    )
+                    "lavadas" -> PantallaLavadas(
+                        servicios = emptyList(),
+                        onAgregarClick = { },
+                        onServicioClick = { }
                     )
                 }
             }
@@ -30,18 +42,51 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
 
-@Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
-    JavesLaundryTheme {
-        Greeting("Android")
+fun PantallaPrincipal(onClientesClick: () -> Unit,
+                      onLavadasClick: () -> Unit) {
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Bienvenido a",
+            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            text = "Jave's Laundry",
+            fontSize = 32.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 48.dp)
+        )
+        Button(
+            onClick = onLavadasClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Text(text = "Lavadas", fontSize = 18.sp)
+        }
+        Button(
+            onClick = onClientesClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Text(text = "Clientes", fontSize = 18.sp)
+        }
+        Button(
+            onClick = { },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = "Movimientos", fontSize = 18.sp)
+        }
     }
 }
