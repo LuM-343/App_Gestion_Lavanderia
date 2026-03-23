@@ -1,7 +1,6 @@
 package com.example.javeslaundry
 
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,8 +10,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,26 +33,25 @@ import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaLavadas(
+fun PantallaClientes(
     dao: LaundryDao,
     onVolver: () -> Unit
 ) {
-    val lavadas by dao.obtenerLavadas().collectAsState(initial = emptyList())
+    val clientes by dao.obtenerClientes().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    var cliente by remember { mutableStateOf("") }
-    var tipoPrenda by remember { mutableStateOf("") }
-    var cantidad by remember { mutableStateOf("") }
-    var precio by remember { mutableStateOf("") }
+    var nombre by remember { mutableStateOf("") }
+    var telefono by remember { mutableStateOf("") }
+    var direccion by remember { mutableStateOf("") }
     var busqueda by remember { mutableStateOf("") }
 
-    val lavadasFiltradas = lavadas.filter {
-        it.cliente.contains(busqueda, ignoreCase = true) ||
-                it.tipoPrenda.contains(busqueda, ignoreCase = true)
+    val clientesFiltrados = clientes.filter {
+        it.nombre.contains(busqueda, ignoreCase = true) ||
+                it.telefono.contains(busqueda, ignoreCase = true) ||
+                it.direccion.contains(busqueda, ignoreCase = true)
     }
 
     Scaffold(
@@ -48,7 +59,7 @@ fun PantallaLavadas(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "Lavadas",
+                        text = "Clientes",
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -72,36 +83,27 @@ fun PantallaLavadas(
         ) {
 
             OutlinedTextField(
-                value = cliente,
-                onValueChange = { cliente = it },
-                label = { Text("Cliente") },
+                value = nombre,
+                onValueChange = { nombre = it },
+                label = { Text("Nombre") },
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedTextField(
-                value = tipoPrenda,
-                onValueChange = { tipoPrenda = it },
-                label = { Text("Tipo de prenda") },
+                value = telefono,
+                onValueChange = { telefono = it },
+                label = { Text("Teléfono") },
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedTextField(
-                value = cantidad,
-                onValueChange = { cantidad = it },
-                label = { Text("Cantidad") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = precio,
-                onValueChange = { precio = it },
-                label = { Text("Precio") },
+                value = direccion,
+                onValueChange = { direccion = it },
+                label = { Text("Dirección") },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -109,28 +111,18 @@ fun PantallaLavadas(
 
             Button(
                 onClick = {
-                    val cantidadInt = cantidad.toIntOrNull()
-                    val precioDouble = precio.toDoubleOrNull()
-
-                    if (
-                        cliente.isNotBlank() &&
-                        tipoPrenda.isNotBlank() &&
-                        cantidadInt != null &&
-                        precioDouble != null
-                    ) {
+                    if (nombre.isNotBlank() && telefono.isNotBlank() && direccion.isNotBlank()) {
                         scope.launch {
-                            dao.insertarLavada(
-                                Lavada(
-                                    cliente = cliente,
-                                    tipoPrenda = tipoPrenda,
-                                    cantidad = cantidadInt,
-                                    precio = precioDouble
+                            dao.insertarCliente(
+                                Cliente(
+                                    nombre = nombre,
+                                    telefono = telefono,
+                                    direccion = direccion
                                 )
                             )
-                            cliente = ""
-                            tipoPrenda = ""
-                            cantidad = ""
-                            precio = ""
+                            nombre = ""
+                            telefono = ""
+                            direccion = ""
                         }
                     }
                 },
@@ -144,27 +136,27 @@ fun PantallaLavadas(
             OutlinedTextField(
                 value = busqueda,
                 onValueChange = { busqueda = it },
-                label = { Text("Buscar lavada...") },
+                label = { Text("Buscar cliente...") },
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Lavadas registradas",
+                text = "Clientes registrados",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            EncabezadoTablaLavadas()
+            EncabezadoTablaClientes()
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(lavadasFiltradas) { lavada ->
-                    FilaLavada(lavada)
+                items(clientesFiltrados) { cliente ->
+                    FilaCliente(cliente)
                 }
             }
         }
@@ -172,7 +164,7 @@ fun PantallaLavadas(
 }
 
 @Composable
-fun EncabezadoTablaLavadas() {
+fun EncabezadoTablaClientes() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -180,25 +172,23 @@ fun EncabezadoTablaLavadas() {
             .padding(8.dp)
     ) {
         Text("ID", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-        Text("Cliente", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
-        Text("Prenda", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
-        Text("Cant.", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-        Text("Precio", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
+        Text("Nombre", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
+        Text("Teléfono", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
+        Text("Dirección", modifier = Modifier.weight(3f), fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-fun FilaLavada(lavada: Lavada) {
+fun FilaCliente(cliente: Cliente) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
             .padding(8.dp)
     ) {
-        Text(lavada.id.toString(), modifier = Modifier.weight(1f))
-        Text(lavada.cliente, modifier = Modifier.weight(2f))
-        Text(lavada.tipoPrenda, modifier = Modifier.weight(2f))
-        Text(lavada.cantidad.toString(), modifier = Modifier.weight(1f))
-        Text("Q ${lavada.precio}", modifier = Modifier.weight(2f))
+        Text(cliente.id.toString(), modifier = Modifier.weight(1f))
+        Text(cliente.nombre, modifier = Modifier.weight(2f))
+        Text(cliente.telefono, modifier = Modifier.weight(2f))
+        Text(cliente.direccion, modifier = Modifier.weight(3f))
     }
 }
