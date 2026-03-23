@@ -58,5 +58,6 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
+    implementation("androidx.compose.material:material-icons-extended")
     ksp(libs.room.compiler)
 }
