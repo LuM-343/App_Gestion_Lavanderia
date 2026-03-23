@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [Cliente::class, Lavada::class],
+    entities = [Cliente::class, Lavada::class, Movimiento::class],
     version = 1,
     exportSchema = false
 )
