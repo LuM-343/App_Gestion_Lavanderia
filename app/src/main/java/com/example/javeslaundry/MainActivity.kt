@@ -34,9 +34,8 @@ class MainActivity : ComponentActivity() {
                         onVolver = { pantalla = "principal" }
                     )
                     "lavadas" -> PantallaLavadas(
-                        servicios = emptyList(),
-                        onAgregarClick = { },
-                        onServicioClick = { }
+                        dao = dao,
+                        onVolver = { pantalla = "principal" }
                     )
                 }
             }
