@@ -41,9 +41,13 @@ class MainActivity : ComponentActivity() {
                     "movimientos" -> PantallaMovimientos(
                         dao = dao,
                         onVolver = { pantalla = "principal" },
-                        onAgregarMovimiento = {  }
+                        onAgregarMovimiento = { pantalla = "agregarMovimiento" }
                     )
-
+                    "agregarMovimiento" -> PantallaAgregarMovimiento(
+                        onVolver = { pantalla = "movimientos" },
+                        onAgregarIngreso = { pantalla = "agregarIngreso" },
+                        onAgregarEgreso = { pantalla = "agregarEgreso" }
+                    )
                 }
             }
         }
