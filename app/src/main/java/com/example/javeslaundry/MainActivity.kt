@@ -17,6 +17,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val database = AppDatabase.getDatabase(applicationContext)
+        val dao = database.laundryDao()
+
         setContent {
             JavesLaundryTheme {
                 var pantalla by remember { mutableStateOf("principal") }
@@ -27,9 +30,8 @@ class MainActivity : ComponentActivity() {
                         onLavadasClick = { pantalla = "lavadas" }
                     )
                     "clientes" -> PantallaClientes(
-                        clientes = emptyList(),
-                        onAgregarClick = { },
-                        onClienteClick = { }
+                        dao = dao,
+                        onVolver = { pantalla = "principal" }
                     )
                     "lavadas" -> PantallaLavadas(
                         servicios = emptyList(),
