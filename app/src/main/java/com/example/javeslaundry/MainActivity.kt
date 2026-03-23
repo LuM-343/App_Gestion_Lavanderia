@@ -27,7 +27,8 @@ class MainActivity : ComponentActivity() {
                 when (pantalla) {
                     "principal" -> PantallaPrincipal(
                         onClientesClick = { pantalla = "clientes" },
-                        onLavadasClick = { pantalla = "lavadas" }
+                        onLavadasClick = { pantalla = "lavadas" },
+                        onMovimientosClick = { pantalla = "movimientos" }
                     )
                     "clientes" -> PantallaClientes(
                         dao = dao,
@@ -37,6 +38,12 @@ class MainActivity : ComponentActivity() {
                         dao = dao,
                         onVolver = { pantalla = "principal" }
                     )
+                    "movimientos" -> PantallaMovimientos(
+                        dao = dao,
+                        onVolver = { pantalla = "principal" },
+                        onAgregarMovimiento = {  }
+                    )
+
                 }
             }
         }
@@ -45,8 +52,12 @@ class MainActivity : ComponentActivity() {
 
 
 @Composable
-fun PantallaPrincipal(onClientesClick: () -> Unit,
-                      onLavadasClick: () -> Unit) {
+fun PantallaPrincipal(
+    onClientesClick: () -> Unit,
+    onLavadasClick: () -> Unit,
+    onMovimientosClick: () -> Unit
+)
+{
 
     Column(
         modifier = Modifier
@@ -84,7 +95,7 @@ fun PantallaPrincipal(onClientesClick: () -> Unit,
             Text(text = "Clientes", fontSize = 18.sp)
         }
         Button(
-            onClick = { },
+            onClick = onMovimientosClick,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = "Movimientos", fontSize = 18.sp)
