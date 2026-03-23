@@ -53,6 +53,11 @@ class MainActivity : ComponentActivity() {
                         onVolver = { pantalla = "agregarMovimiento" },
                         onGuardarExitoso = { pantalla = "movimientos" }
                     )
+                    "agregarEgreso" -> PantallaAgregarEgreso(
+                        dao = dao,
+                        onVolver = { pantalla = "agregarMovimiento" },
+                        onGuardarExitoso = { pantalla = "movimientos" }
+                    )
                 }
             }
         }
