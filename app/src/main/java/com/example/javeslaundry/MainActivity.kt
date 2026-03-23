@@ -48,6 +48,11 @@ class MainActivity : ComponentActivity() {
                         onAgregarIngreso = { pantalla = "agregarIngreso" },
                         onAgregarEgreso = { pantalla = "agregarEgreso" }
                     )
+                    "agregarIngreso" -> PantallaAgregarIngreso(
+                        dao = dao,
+                        onVolver = { pantalla = "agregarMovimiento" },
+                        onGuardarExitoso = { pantalla = "movimientos" }
+                    )
                 }
             }
         }
