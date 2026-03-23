@@ -13,4 +13,10 @@ interface LaundryDao {
 
     @Query("SELECT * FROM clientes ORDER BY id DESC")
     fun obtenerClientes(): Flow<List<Cliente>>
+
+    @Insert
+    suspend fun insertarLavada(lavada: Lavada)
+
+    @Query("SELECT * FROM lavadas ORDER BY id DESC")
+    fun obtenerLavadas(): Flow<List<Lavada>>
 }
