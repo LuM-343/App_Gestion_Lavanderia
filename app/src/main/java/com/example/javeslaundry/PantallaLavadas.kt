@@ -25,9 +25,11 @@ fun PantallaLavadas(
     onVolver: () -> Unit
 ) {
     val lavadas by dao.obtenerLavadas().collectAsState(initial = emptyList())
+    val clientesRegistrados by dao.obtenerClientes().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    var cliente by remember { mutableStateOf("") }
+    var clienteNombre by remember { mutableStateOf("") }
+    var expandedClientes by remember { mutableStateOf(false) }
     
     // Opciones para el menú desplegable múltiple de Prendas
     val opcionesPrendas = listOf("Camisa", "Pantalón", "Vestido", "Saco", "Chaqueta", "Cobija", "Edredón", "Otros")
@@ -49,6 +51,10 @@ fun PantallaLavadas(
     val lavadasFiltradas = lavadas.filter {
         it.cliente.contains(busqueda, ignoreCase = true) ||
                 it.tipoPrenda.contains(busqueda, ignoreCase = true)
+    }
+
+    val clientesFiltrados = clientesRegistrados.filter {
+        it.nombre.contains(clienteNombre, ignoreCase = true)
     }
 
     Scaffold(
@@ -79,12 +85,42 @@ fun PantallaLavadas(
                 .padding(16.dp)
         ) {
 
-            OutlinedTextField(
-                value = cliente,
-                onValueChange = { cliente = it },
-                label = { Text("Cliente") },
+            // Menú desplegable para seleccionar Cliente registrado
+            ExposedDropdownMenuBox(
+                expanded = expandedClientes,
+                onExpandedChange = { expandedClientes = !expandedClientes },
                 modifier = Modifier.fillMaxWidth()
-            )
+            ) {
+                OutlinedTextField(
+                    value = clienteNombre,
+                    onValueChange = { 
+                        clienteNombre = it
+                        expandedClientes = true
+                    },
+                    label = { Text("Cliente") },
+                    modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = true).fillMaxWidth(),
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedClientes) },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                )
+
+                if (clientesFiltrados.isNotEmpty()) {
+                    ExposedDropdownMenu(
+                        expanded = expandedClientes,
+                        onDismissRequest = { expandedClientes = false }
+                    ) {
+                        clientesFiltrados.forEach { clienteObj ->
+                            DropdownMenuItem(
+                                text = { Text(clienteObj.nombre) },
+                                onClick = {
+                                    clienteNombre = clienteObj.nombre
+                                    expandedClientes = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -200,7 +236,7 @@ fun PantallaLavadas(
                         val tipoPrendaFinal = selectedPrendas.joinToString(", ")
 
                         if (
-                            cliente.isNotBlank() &&
+                            clienteNombre.isNotBlank() &&
                             tipoPrendaFinal.isNotBlank() &&
                             cantidadInt != null &&
                             precioDouble != null
@@ -210,7 +246,7 @@ fun PantallaLavadas(
                                     // Insertar nueva lavada - Automáticamente Pendiente
                                     dao.insertarLavada(
                                         Lavada(
-                                            cliente = cliente,
+                                            cliente = clienteNombre,
                                             tipoPrenda = tipoPrendaFinal,
                                             cantidad = cantidadInt,
                                             precio = precioDouble,
@@ -220,7 +256,7 @@ fun PantallaLavadas(
                                 } else {
                                     // Actualizar lavada existente
                                     val lavadaActualizada = lavadaEnEdicion!!.copy(
-                                        cliente = cliente,
+                                        cliente = clienteNombre,
                                         tipoPrenda = tipoPrendaFinal,
                                         cantidad = cantidadInt,
                                         precio = precioDouble,
@@ -235,7 +271,7 @@ fun PantallaLavadas(
                                     if (!antesPagado && ahoraPagado) {
                                         dao.insertarMovimiento(
                                             Movimiento(
-                                                concepto = "Pago de lavada - $cliente",
+                                                concepto = "Pago de lavada - $clienteNombre",
                                                 monto = precioDouble,
                                                 tipo = "ingreso"
                                             )
@@ -243,7 +279,7 @@ fun PantallaLavadas(
                                     }
                                 }
                                 // Limpiar campos
-                                cliente = ""
+                                clienteNombre = ""
                                 selectedPrendas = emptySet()
                                 estadoPagoSeleccionado = "Pendiente"
                                 cantidad = ""
@@ -263,7 +299,7 @@ fun PantallaLavadas(
                         onClick = {
                             scope.launch {
                                 dao.eliminarLavada(lavadaEnEdicion!!)
-                                cliente = ""
+                                clienteNombre = ""
                                 selectedPrendas = emptySet()
                                 estadoPagoSeleccionado = "Pendiente"
                                 cantidad = ""
@@ -279,7 +315,7 @@ fun PantallaLavadas(
 
                     Button(
                         onClick = {
-                            cliente = ""
+                            clienteNombre = ""
                             selectedPrendas = emptySet()
                             estadoPagoSeleccionado = "Pendiente"
                             cantidad = ""
@@ -322,7 +358,7 @@ fun PantallaLavadas(
                         lavada = lavada,
                         onEdit = {
                             lavadaEnEdicion = lavada
-                            cliente = lavada.cliente
+                            clienteNombre = lavada.cliente
                             selectedPrendas = if (lavada.tipoPrenda.isBlank()) emptySet() else lavada.tipoPrenda.split(", ").toSet()
                             estadoPagoSeleccionado = lavada.estadoPago
                             cantidad = lavada.cantidad.toString()
