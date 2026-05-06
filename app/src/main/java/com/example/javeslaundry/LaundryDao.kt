@@ -28,4 +28,10 @@ interface LaundryDao {
 
     @Query("SELECT * FROM movimientos ORDER BY fecha DESC")
     fun obtenerMovimientos(): Flow<List<Movimiento>>
+
+    @androidx.room.Update
+    suspend fun actualizarCliente(cliente: Cliente)
+
+    @androidx.room.Update
+    suspend fun actualizarLavada(lavada: Lavada)
 }

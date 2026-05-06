@@ -10,5 +10,6 @@ data class Lavada(
     val cliente: String,
     val tipoPrenda: String,
     val cantidad: Int,
-    val precio: Double
+    val precio: Double,
+    val estadoPago: String = "Pendiente" // Nuevo campo agregado
 )
