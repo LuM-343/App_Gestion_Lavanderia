@@ -93,20 +93,20 @@ fun PantallaPrincipal(
             modifier = Modifier.padding(bottom = 48.dp)
         )
         Button(
-            onClick = onLavadasClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        ) {
-            Text(text = "Lavadas", fontSize = 18.sp)
-        }
-        Button(
             onClick = onClientesClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
         ) {
             Text(text = "Clientes", fontSize = 18.sp)
+        }
+        Button(
+            onClick = onLavadasClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Text(text = "Lavadas", fontSize = 18.sp)
         }
         Button(
             onClick = onMovimientosClick,
