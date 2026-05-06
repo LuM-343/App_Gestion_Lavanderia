@@ -2,15 +2,7 @@ package com.example.javeslaundry
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -23,8 +15,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 
@@ -267,8 +257,26 @@ fun PantallaLavadas(
                     Text(if (lavadaEnEdicion == null) "Agregar" else "Actualizar")
                 }
 
-                // Botón de cancelar solo visible al editar
+                // Botones de Eliminar y Cancelar solo visibles al editar
                 if (lavadaEnEdicion != null) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                dao.eliminarLavada(lavadaEnEdicion!!)
+                                cliente = ""
+                                selectedPrendas = emptySet()
+                                estadoPagoSeleccionado = "Pendiente"
+                                cantidad = ""
+                                precio = ""
+                                lavadaEnEdicion = null
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Eliminar")
+                    }
+
                     Button(
                         onClick = {
                             cliente = ""
@@ -319,19 +327,6 @@ fun PantallaLavadas(
                             estadoPagoSeleccionado = lavada.estadoPago
                             cantidad = lavada.cantidad.toString()
                             precio = lavada.precio.toString()
-                        },
-                        onDelete = {
-                            scope.launch {
-                                dao.eliminarLavada(lavada)
-                                if (lavadaEnEdicion?.id == lavada.id) {
-                                    lavadaEnEdicion = null
-                                    cliente = ""
-                                    selectedPrendas = emptySet()
-                                    estadoPagoSeleccionado = "Pendiente"
-                                    cantidad = ""
-                                    precio = ""
-                                }
-                            }
                         }
                     )
                 }
@@ -350,42 +345,32 @@ fun EncabezadoTablaLavadas() {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("ID", modifier = Modifier.weight(0.5f), fontWeight = FontWeight.Bold)
-        Text("Cliente", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold)
-        Text("Prenda", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold)
+        Text("Cliente", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
+        Text("Prenda", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
         Text("Cant.", modifier = Modifier.weight(0.7f), fontWeight = FontWeight.Bold)
-        Text("Precio", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-        Text("Estado", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-        Text("Acción", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+        Text("Precio", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
+        Text("Estado", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 fun FilaLavada(
     lavada: Lavada,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onEdit: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .clickable { onEdit() }
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(lavada.id.toString(), modifier = Modifier.weight(0.5f))
-        Text(lavada.cliente, modifier = Modifier.weight(1.5f))
-        Text(lavada.tipoPrenda, modifier = Modifier.weight(1.5f))
+        Text(lavada.cliente, modifier = Modifier.weight(2f))
+        Text(lavada.tipoPrenda, modifier = Modifier.weight(2f))
         Text(lavada.cantidad.toString(), modifier = Modifier.weight(0.7f))
-        Text("Q ${lavada.precio}", modifier = Modifier.weight(1f))
-        Text(lavada.estadoPago, modifier = Modifier.weight(1f))
-        
-        Row(modifier = Modifier.weight(1f)) {
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
-            }
-        }
+        Text("Q ${lavada.precio}", modifier = Modifier.weight(1.2f))
+        Text(lavada.estadoPago, modifier = Modifier.weight(1.2f))
     }
 }
