@@ -37,14 +37,18 @@ fun PantallaLavadas(
 
     var cliente by remember { mutableStateOf("") }
     
-    // Opciones para el menú desplegable múltiple
+    // Opciones para el menú desplegable múltiple de Prendas
     val opcionesPrendas = listOf("Camisa", "Pantalón", "Vestido", "Saco", "Chaqueta", "Cobija", "Edredón", "Otros")
     var selectedPrendas by remember { mutableStateOf(setOf<String>()) }
     var expandedPrendas by remember { mutableStateOf(false) }
 
+    // Opciones para el menú desplegable múltiple de Pago
+    val opcionesPago = listOf("Pendiente", "Pagado", "Efectivo", "Tarjeta", "Transferencia")
+    var selectedPagos by remember { mutableStateOf(setOf<String>()) }
+    var expandedPago by remember { mutableStateOf(false) }
+
     var cantidad by remember { mutableStateOf("") }
     var precio by remember { mutableStateOf("") }
-    var estadoPago by remember { mutableStateOf("Pendiente") }
     var busqueda by remember { mutableStateOf("") }
 
     // Estado para controlar si estamos creando o editando
@@ -104,7 +108,9 @@ fun PantallaLavadas(
                     readOnly = true,
                     label = { Text("Tipo de prenda") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPrendas) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                    modifier = Modifier
+                        .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+                        .fillMaxWidth()
                 )
                 ExposedDropdownMenu(
                     expanded = expandedPrendas,
@@ -154,15 +160,52 @@ fun PantallaLavadas(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Nuevo campo para el estado del pago
-            OutlinedTextField(
-                value = estadoPago,
-                onValueChange = { estadoPago = it },
-                label = { Text("Estado (Pendiente / Pagado)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
+            // Menú desplegable múltiple para Estado de Pago (SÓLO SE MUESTRA AL EDITAR)
+            if (lavadaEnEdicion != null) {
+                ExposedDropdownMenuBox(
+                    expanded = expandedPago,
+                    onExpandedChange = { expandedPago = !expandedPago },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = if (selectedPagos.isEmpty()) "Seleccionar estado de pago" else selectedPagos.joinToString(", "),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Estado de pago") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPago) },
+                        modifier = Modifier
+                            .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedPago,
+                        onDismissRequest = { expandedPago = false }
+                    ) {
+                        opcionesPago.forEach { pago ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = selectedPagos.contains(pago),
+                                            onCheckedChange = null
+                                        )
+                                        Text(text = pago, modifier = Modifier.padding(start = 8.dp))
+                                    }
+                                },
+                                onClick = {
+                                    selectedPagos = if (selectedPagos.contains(pago)) {
+                                        selectedPagos - pago
+                                    } else {
+                                        selectedPagos + pago
+                                    }
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // Fila con botones dinámicos
             Row(
@@ -179,35 +222,37 @@ fun PantallaLavadas(
                             cliente.isNotBlank() &&
                             tipoPrendaFinal.isNotBlank() &&
                             cantidadInt != null &&
-                            precioDouble != null &&
-                            estadoPago.isNotBlank()
+                            precioDouble != null
                         ) {
                             scope.launch {
                                 if (lavadaEnEdicion == null) {
-                                    // Insertar nueva lavada
+                                    // Insertar nueva lavada - Automáticamente Pendiente
                                     dao.insertarLavada(
                                         Lavada(
                                             cliente = cliente,
                                             tipoPrenda = tipoPrendaFinal,
                                             cantidad = cantidadInt,
                                             precio = precioDouble,
-                                            estadoPago = estadoPago
+                                            estadoPago = "Pendiente"
                                         )
                                     )
                                 } else {
-                                    // Actualizar lavada existente
+                                    // Actualizar lavada existente - Permite cambiar el pago
+                                    val estadoPagoFinal = selectedPagos.joinToString(", ")
                                     val lavadaActualizada = lavadaEnEdicion!!.copy(
                                         cliente = cliente,
                                         tipoPrenda = tipoPrendaFinal,
                                         cantidad = cantidadInt,
                                         precio = precioDouble,
-                                        estadoPago = estadoPago
+                                        estadoPago = estadoPagoFinal
                                     )
                                     dao.actualizarLavada(lavadaActualizada)
 
                                     // LÓGICA DE MOVIMIENTOS: Si antes NO estaba pagado, y ahora SÍ lo está
-                                    if (!lavadaEnEdicion!!.estadoPago.equals("Pagado", ignoreCase = true) &&
-                                        estadoPago.equals("Pagado", ignoreCase = true)) {
+                                    val antesPagado = lavadaEnEdicion!!.estadoPago.contains("Pagado", ignoreCase = true)
+                                    val ahoraPagado = estadoPagoFinal.contains("Pagado", ignoreCase = true)
+                                    
+                                    if (!antesPagado && ahoraPagado) {
                                         dao.insertarMovimiento(
                                             Movimiento(
                                                 concepto = "Pago de lavada - $cliente",
@@ -220,9 +265,9 @@ fun PantallaLavadas(
                                 // Limpiar campos
                                 cliente = ""
                                 selectedPrendas = emptySet()
+                                selectedPagos = emptySet()
                                 cantidad = ""
                                 precio = ""
-                                estadoPago = "Pendiente"
                                 lavadaEnEdicion = null
                             }
                         }
@@ -238,9 +283,9 @@ fun PantallaLavadas(
                         onClick = {
                             cliente = ""
                             selectedPrendas = emptySet()
+                            selectedPagos = emptySet()
                             cantidad = ""
                             precio = ""
-                            estadoPago = "Pendiente"
                             lavadaEnEdicion = null
                         },
                         modifier = Modifier.weight(1f)
@@ -281,9 +326,9 @@ fun PantallaLavadas(
                             lavadaEnEdicion = lavada
                             cliente = lavada.cliente
                             selectedPrendas = if (lavada.tipoPrenda.isBlank()) emptySet() else lavada.tipoPrenda.split(", ").toSet()
+                            selectedPagos = if (lavada.estadoPago.isBlank()) emptySet() else lavada.estadoPago.split(", ").toSet()
                             cantidad = lavada.cantidad.toString()
                             precio = lavada.precio.toString()
-                            estadoPago = lavada.estadoPago
                         }
                     ) {
                         FilaLavada(lavada)
