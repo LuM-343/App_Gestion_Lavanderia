@@ -9,14 +9,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,13 +29,14 @@ fun PantallaLavadas(
 
     var clienteNombre by remember { mutableStateOf("") }
     var expandedClientes by remember { mutableStateOf(false) }
-    
-    // Opciones para el menú desplegable múltiple de Prendas
-    val opcionesPrendas = listOf("Camisa", "Pantalón", "Vestido", "Saco", "Chaqueta", "Cobija", "Edredón", "Otros")
+
+    val opcionesPrendas = listOf(
+        "Camisa", "Pantalón", "Vestido", "Saco",
+        "Chaqueta", "Cobija", "Edredón", "Otros"
+    )
     var selectedPrendas by remember { mutableStateOf(setOf<String>()) }
     var expandedPrendas by remember { mutableStateOf(false) }
 
-    // Opciones para el menú desplegable de Pago (Selección única)
     val opcionesPago = listOf("Pendiente", "Pagado")
     var estadoPagoSeleccionado by remember { mutableStateOf("Pendiente") }
     var expandedPago by remember { mutableStateOf(false) }
@@ -44,9 +44,10 @@ fun PantallaLavadas(
     var cantidad by remember { mutableStateOf("") }
     var precio by remember { mutableStateOf("") }
     var busqueda by remember { mutableStateOf("") }
-
-    // Estado para controlar si estamos creando o editando
     var lavadaEnEdicion by remember { mutableStateOf<Lavada?>(null) }
+
+    // Diálogo de confirmación para eliminar
+    var mostrarDialogoEliminar by remember { mutableStateOf(false) }
 
     val lavadasFiltradas = lavadas.filter {
         it.cliente.contains(busqueda, ignoreCase = true) ||
@@ -57,21 +58,66 @@ fun PantallaLavadas(
         it.nombre.contains(clienteNombre, ignoreCase = true)
     }
 
+    fun limpiarCampos() {
+        clienteNombre = ""
+        selectedPrendas = emptySet()
+        estadoPagoSeleccionado = "Pendiente"
+        cantidad = ""
+        precio = ""
+        lavadaEnEdicion = null
+    }
+
+    // Diálogo de confirmación de eliminación
+    if (mostrarDialogoEliminar && lavadaEnEdicion != null) {
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoEliminar = false },
+            title = { Text("Eliminar lavada") },
+            text = {
+                Text(
+                    if (lavadaEnEdicion!!.estadoPago == "Pagado")
+                        "Esta lavada ya fue pagada (Q ${"%.2f".format(lavadaEnEdicion!!.precio)}). " +
+                                "Se registrará una devolución en movimientos. ¿Deseas continuar?"
+                    else
+                        "¿Seguro que deseas eliminar la lavada de ${lavadaEnEdicion!!.cliente}?"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        val lavada = lavadaEnEdicion!!
+                        // Si estaba pagada, registrar devolución/egreso
+                        if (lavada.estadoPago == "Pagado") {
+                            dao.insertarMovimiento(
+                                Movimiento(
+                                    concepto = "Devolución / cancelación lavada - ${lavada.cliente}",
+                                    monto = lavada.precio,
+                                    tipo = "egreso"
+                                )
+                            )
+                        }
+                        dao.eliminarLavada(lavada)
+                        limpiarCampos()
+                    }
+                    mostrarDialogoEliminar = false
+                }) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDialogoEliminar = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = "Lavadas",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+                title = { Text("Lavadas", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onVolver) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Volver"
-                        )
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
                     }
                 }
             )
@@ -85,7 +131,7 @@ fun PantallaLavadas(
                 .padding(16.dp)
         ) {
 
-            // Menú desplegable para seleccionar Cliente registrado
+            // ── Selector de Cliente ──────────────────────────────────────────
             ExposedDropdownMenuBox(
                 expanded = expandedClientes,
                 onExpandedChange = { expandedClientes = !expandedClientes },
@@ -93,16 +139,17 @@ fun PantallaLavadas(
             ) {
                 OutlinedTextField(
                     value = clienteNombre,
-                    onValueChange = { 
+                    onValueChange = {
                         clienteNombre = it
                         expandedClientes = true
                     },
                     label = { Text("Cliente") },
-                    modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = true).fillMaxWidth(),
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true)
+                        .fillMaxWidth(),
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedClientes) },
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                 )
-
                 if (clientesFiltrados.isNotEmpty()) {
                     ExposedDropdownMenu(
                         expanded = expandedClientes,
@@ -124,20 +171,21 @@ fun PantallaLavadas(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Menú desplegable múltiple para Tipo de prenda
+            // ── Selector de Prendas (multi) ──────────────────────────────────
             ExposedDropdownMenuBox(
                 expanded = expandedPrendas,
                 onExpandedChange = { expandedPrendas = !expandedPrendas },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    value = if (selectedPrendas.isEmpty()) "Seleccionar prendas" else selectedPrendas.joinToString(", "),
+                    value = if (selectedPrendas.isEmpty()) "Seleccionar prendas"
+                    else selectedPrendas.joinToString(", "),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Tipo de prenda") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPrendas) },
                     modifier = Modifier
-                        .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                         .fillMaxWidth()
                 )
                 ExposedDropdownMenu(
@@ -152,15 +200,14 @@ fun PantallaLavadas(
                                         checked = selectedPrendas.contains(prenda),
                                         onCheckedChange = null
                                     )
-                                    Text(text = prenda, modifier = Modifier.padding(start = 8.dp))
+                                    Text(prenda, modifier = Modifier.padding(start = 8.dp))
                                 }
                             },
                             onClick = {
-                                selectedPrendas = if (selectedPrendas.contains(prenda)) {
+                                selectedPrendas = if (selectedPrendas.contains(prenda))
                                     selectedPrendas - prenda
-                                } else {
+                                else
                                     selectedPrendas + prenda
-                                }
                             },
                             contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                         )
@@ -188,7 +235,7 @@ fun PantallaLavadas(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Menú desplegable de selección ÚNICA para Estado de Pago (SÓLO SE MUESTRA AL EDITAR)
+            // ── Estado de Pago (solo al editar) ─────────────────────────────
             if (lavadaEnEdicion != null) {
                 ExposedDropdownMenuBox(
                     expanded = expandedPago,
@@ -202,7 +249,7 @@ fun PantallaLavadas(
                         label = { Text("Estado de pago") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPago) },
                         modifier = Modifier
-                            .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                             .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
@@ -211,7 +258,7 @@ fun PantallaLavadas(
                     ) {
                         opcionesPago.forEach { pago ->
                             DropdownMenuItem(
-                                text = { Text(text = pago) },
+                                text = { Text(pago) },
                                 onClick = {
                                     estadoPagoSeleccionado = pago
                                     expandedPago = false
@@ -224,7 +271,7 @@ fun PantallaLavadas(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Fila con botones dinámicos
+            // ── Botones ──────────────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -235,15 +282,14 @@ fun PantallaLavadas(
                         val precioDouble = precio.toDoubleOrNull()
                         val tipoPrendaFinal = selectedPrendas.joinToString(", ")
 
-                        if (
-                            clienteNombre.isNotBlank() &&
+                        if (clienteNombre.isNotBlank() &&
                             tipoPrendaFinal.isNotBlank() &&
                             cantidadInt != null &&
                             precioDouble != null
                         ) {
                             scope.launch {
                                 if (lavadaEnEdicion == null) {
-                                    // Insertar nueva lavada - Automáticamente Pendiente
+                                    // ── NUEVA lavada: siempre Pendiente ─────
                                     dao.insertarLavada(
                                         Lavada(
                                             cliente = clienteNombre,
@@ -254,37 +300,68 @@ fun PantallaLavadas(
                                         )
                                     )
                                 } else {
-                                    // Actualizar lavada existente
-                                    val lavadaActualizada = lavadaEnEdicion!!.copy(
-                                        cliente = clienteNombre,
-                                        tipoPrenda = tipoPrendaFinal,
-                                        cantidad = cantidadInt,
-                                        precio = precioDouble,
-                                        estadoPago = estadoPagoSeleccionado
-                                    )
-                                    dao.actualizarLavada(lavadaActualizada)
+                                    val antesPagado = lavadaEnEdicion!!.estadoPago
+                                        .equals("Pagado", ignoreCase = true)
+                                    val ahoraPagado = estadoPagoSeleccionado
+                                        .equals("Pagado", ignoreCase = true)
+                                    val precioAnterior = lavadaEnEdicion!!.precio
 
-                                    // LÓGICA DE MOVIMIENTOS: Si antes NO estaba pagado, y ahora SÍ lo está
-                                    val antesPagado = lavadaEnEdicion!!.estadoPago.equals("Pagado", ignoreCase = true)
-                                    val ahoraPagado = estadoPagoSeleccionado.equals("Pagado", ignoreCase = true)
-                                    
-                                    if (!antesPagado && ahoraPagado) {
-                                        dao.insertarMovimiento(
-                                            Movimiento(
-                                                concepto = "Pago de lavada - $clienteNombre",
-                                                monto = precioDouble,
-                                                tipo = "ingreso"
-                                            )
+                                    // ── ACTUALIZAR lavada ────────────────────
+                                    dao.actualizarLavada(
+                                        lavadaEnEdicion!!.copy(
+                                            cliente = clienteNombre,
+                                            tipoPrenda = tipoPrendaFinal,
+                                            cantidad = cantidadInt,
+                                            precio = precioDouble,
+                                            estadoPago = estadoPagoSeleccionado
                                         )
+                                    )
+
+                                    when {
+                                        // Caso 1 → Pendiente a Pagado: registrar INGRESO
+                                        !antesPagado && ahoraPagado -> {
+                                            dao.insertarMovimiento(
+                                                Movimiento(
+                                                    concepto = "Pago lavada - $clienteNombre ($tipoPrendaFinal)",
+                                                    monto = precioDouble,
+                                                    tipo = "ingreso"
+                                                )
+                                            )
+                                        }
+                                        // Caso 2 → Pagado a Pendiente: registrar EGRESO (reversión)
+                                        antesPagado && !ahoraPagado -> {
+                                            dao.insertarMovimiento(
+                                                Movimiento(
+                                                    concepto = "Reversión pago - $clienteNombre ($tipoPrendaFinal)",
+                                                    monto = precioAnterior,
+                                                    tipo = "egreso"
+                                                )
+                                            )
+                                        }
+                                        // Caso 3 → Ya pagado y se cambia el precio: ajuste
+                                        antesPagado && ahoraPagado && precioAnterior != precioDouble -> {
+                                            val diferencia = precioDouble - precioAnterior
+                                            if (diferencia > 0) {
+                                                dao.insertarMovimiento(
+                                                    Movimiento(
+                                                        concepto = "Ajuste precio lavada + $clienteNombre",
+                                                        monto = diferencia,
+                                                        tipo = "ingreso"
+                                                    )
+                                                )
+                                            } else {
+                                                dao.insertarMovimiento(
+                                                    Movimiento(
+                                                        concepto = "Ajuste precio lavada - $clienteNombre",
+                                                        monto = -diferencia,
+                                                        tipo = "egreso"
+                                                    )
+                                                )
+                                            }
+                                        }
                                     }
                                 }
-                                // Limpiar campos
-                                clienteNombre = ""
-                                selectedPrendas = emptySet()
-                                estadoPagoSeleccionado = "Pendiente"
-                                cantidad = ""
-                                precio = ""
-                                lavadaEnEdicion = null
+                                limpiarCampos()
                             }
                         }
                     },
@@ -293,35 +370,19 @@ fun PantallaLavadas(
                     Text(if (lavadaEnEdicion == null) "Agregar" else "Actualizar")
                 }
 
-                // Botones de Eliminar y Cancelar solo visibles al editar
                 if (lavadaEnEdicion != null) {
                     Button(
-                        onClick = {
-                            scope.launch {
-                                dao.eliminarLavada(lavadaEnEdicion!!)
-                                clienteNombre = ""
-                                selectedPrendas = emptySet()
-                                estadoPagoSeleccionado = "Pendiente"
-                                cantidad = ""
-                                precio = ""
-                                lavadaEnEdicion = null
-                            }
-                        },
+                        onClick = { mostrarDialogoEliminar = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
                     ) {
                         Text("Eliminar")
                     }
 
                     Button(
-                        onClick = {
-                            clienteNombre = ""
-                            selectedPrendas = emptySet()
-                            estadoPagoSeleccionado = "Pendiente"
-                            cantidad = ""
-                            precio = ""
-                            lavadaEnEdicion = null
-                        },
+                        onClick = { limpiarCampos() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Cancelar")
@@ -340,26 +401,21 @@ fun PantallaLavadas(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = "Lavadas registradas",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text("Lavadas registradas", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
 
             Spacer(modifier = Modifier.height(8.dp))
 
             EncabezadoTablaLavadas()
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(lavadasFiltradas) { lavada ->
                     FilaLavada(
                         lavada = lavada,
                         onEdit = {
                             lavadaEnEdicion = lavada
                             clienteNombre = lavada.cliente
-                            selectedPrendas = if (lavada.tipoPrenda.isBlank()) emptySet() else lavada.tipoPrenda.split(", ").toSet()
+                            selectedPrendas = if (lavada.tipoPrenda.isBlank()) emptySet()
+                            else lavada.tipoPrenda.split(", ").toSet()
                             estadoPagoSeleccionado = lavada.estadoPago
                             cantidad = lavada.cantidad.toString()
                             precio = lavada.precio.toString()
@@ -380,20 +436,20 @@ fun EncabezadoTablaLavadas() {
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("ID", modifier = Modifier.weight(0.5f), fontWeight = FontWeight.Bold)
-        Text("Cliente", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
-        Text("Prenda", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
-        Text("Cant.", modifier = Modifier.weight(0.7f), fontWeight = FontWeight.Bold)
-        Text("Precio", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
-        Text("Estado", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
+        Text("ID",      modifier = Modifier.weight(0.5f), fontWeight = FontWeight.Bold)
+        Text("Cliente", modifier = Modifier.weight(2f),   fontWeight = FontWeight.Bold)
+        Text("Prenda",  modifier = Modifier.weight(2f),   fontWeight = FontWeight.Bold)
+        Text("Cant.",   modifier = Modifier.weight(0.7f), fontWeight = FontWeight.Bold)
+        Text("Precio",  modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
+        Text("Estado",  modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-fun FilaLavada(
-    lavada: Lavada,
-    onEdit: () -> Unit
-) {
+fun FilaLavada(lavada: Lavada, onEdit: () -> Unit) {
+    val colorEstado = if (lavada.estadoPago == "Pagado")
+        Color(0xFF2E7D32) else Color(0xFFC62828)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -402,11 +458,16 @@ fun FilaLavada(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(lavada.id.toString(), modifier = Modifier.weight(0.5f))
-        Text(lavada.cliente, modifier = Modifier.weight(2f))
-        Text(lavada.tipoPrenda, modifier = Modifier.weight(2f))
-        Text(lavada.cantidad.toString(), modifier = Modifier.weight(0.7f))
-        Text("Q ${lavada.precio}", modifier = Modifier.weight(1.2f))
-        Text(lavada.estadoPago, modifier = Modifier.weight(1.2f))
+        Text(lavada.id.toString(),             modifier = Modifier.weight(0.5f))
+        Text(lavada.cliente,                   modifier = Modifier.weight(2f))
+        Text(lavada.tipoPrenda,                modifier = Modifier.weight(2f))
+        Text(lavada.cantidad.toString(),       modifier = Modifier.weight(0.7f))
+        Text("Q ${"%.2f".format(lavada.precio)}", modifier = Modifier.weight(1.2f))
+        Text(
+            lavada.estadoPago,
+            modifier = Modifier.weight(1.2f),
+            color = colorEstado,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
