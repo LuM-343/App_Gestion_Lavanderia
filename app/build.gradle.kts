@@ -6,15 +6,11 @@ plugins {
 
 android {
     namespace = "com.example.javeslaundry"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.javeslaundry"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -38,6 +34,16 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/NOTICE.txt"
+        }
+    }
 }
 
 dependencies {
@@ -60,4 +66,7 @@ dependencies {
     implementation(libs.room.ktx)
     implementation("androidx.compose.material:material-icons-extended")
     ksp(libs.room.compiler)
+    
+    // Excel Export
+    implementation(libs.poi.ooxml)
 }

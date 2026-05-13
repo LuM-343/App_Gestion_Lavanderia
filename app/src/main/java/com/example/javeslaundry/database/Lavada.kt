@@ -1,4 +1,4 @@
-package com.example.javeslaundry
+package com.example.javeslaundry.database
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -11,5 +11,8 @@ data class Lavada(
     val tipoPrenda: String,
     val cantidad: Int,
     val precio: Double,
-    val estadoPago: String = "Pendiente" // Nuevo campo agregado
+    val estadoPago: String = "Pendiente",
+    val estadoEntrega: String = "Pendiente", // "Pendiente" o "Entregada"
+    val fechaCreacion: Long = System.currentTimeMillis(),
+    val fechaEntrega: Long? = null
 )

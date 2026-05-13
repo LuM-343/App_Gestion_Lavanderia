@@ -1,4 +1,4 @@
-package com.example.javeslaundry
+package com.example.javeslaundry.database
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -26,6 +26,15 @@ interface LaundryDao {
 
     @Query("SELECT * FROM lavadas ORDER BY id DESC")
     fun obtenerLavadas(): Flow<List<Lavada>>
+
+    @Query("SELECT * FROM lavadas WHERE estadoEntrega = :estado ORDER BY fechaCreacion DESC")
+    fun obtenerLavadasPorEstado(estado: String): Flow<List<Lavada>>
+
+    @Query("SELECT * FROM lavadas WHERE fechaCreacion BETWEEN :inicio AND :fin ORDER BY fechaCreacion DESC")
+    fun obtenerLavadasPorRangoFechas(inicio: Long, fin: Long): Flow<List<Lavada>>
+
+    @Query("SELECT * FROM lavadas WHERE estadoEntrega = :estado AND fechaCreacion BETWEEN :inicio AND :fin ORDER BY fechaCreacion DESC")
+    fun obtenerLavadasPorEstadoYRangoFechas(estado: String, inicio: Long, fin: Long): Flow<List<Lavada>>
 
     @Update
     suspend fun actualizarLavada(lavada: Lavada)

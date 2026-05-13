@@ -5,9 +5,10 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "movimientos")
 data class Movimiento(
-    @PrimaryKey(autoGenerate = true) val idMovimiento: Int = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    val fecha: Long = System.currentTimeMillis(),
     val concepto: String,
-    val tipo: String,
     val monto: Double,
-    val fecha: Long
+    val tipo: String // "ingreso" o "egreso"
 )

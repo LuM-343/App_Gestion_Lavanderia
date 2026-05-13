@@ -27,6 +27,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.javeslaundry.database.LaundryDao
+import com.example.javeslaundry.database.Movimiento
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)

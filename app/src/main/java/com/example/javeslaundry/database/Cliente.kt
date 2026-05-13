@@ -5,9 +5,9 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "clientes")
 data class Cliente(
-    @PrimaryKey(autoGenerate = true) val idCliente: Int = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
     val nombre: String,
-    val telefono: Int,
-    val direccion: String,
-    val extra: String?
+    val telefono: String,
+    val direccion: String
 )

@@ -1,4 +1,4 @@
-package com.example.javeslaundry
+package com.example.javeslaundry.database
 
 import android.content.Context
 import androidx.room.Database
@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [Cliente::class, Lavada::class, Movimiento::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

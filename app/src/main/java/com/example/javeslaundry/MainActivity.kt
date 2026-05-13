@@ -12,6 +12,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.javeslaundry.ui.theme.JavesLaundryTheme
 import androidx.compose.runtime.*
+import com.example.javeslaundry.database.AppDatabase
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,7 +29,8 @@ class MainActivity : ComponentActivity() {
                     "principal" -> PantallaPrincipal(
                         onClientesClick = { pantalla = "clientes" },
                         onLavadasClick = { pantalla = "lavadas" },
-                        onMovimientosClick = { pantalla = "movimientos" }
+                        onMovimientosClick = { pantalla = "movimientos" },
+                        onInformesClick = {pantalla = "informes"}
                     )
                     "clientes" -> PantallaClientes(
                         dao = dao,
@@ -41,6 +44,10 @@ class MainActivity : ComponentActivity() {
                         dao = dao,
                         onVolver = { pantalla = "principal" },
                         onAgregarMovimiento = { pantalla = "agregarMovimiento" }
+                    )
+                    "informes" -> PantallaInformes(
+                        dao= dao,
+                        onVolver = {pantalla = "principal"}
                     )
                     "agregarMovimiento" -> PantallaAgregarMovimiento(
                         onVolver = { pantalla = "movimientos" },
@@ -68,7 +75,8 @@ class MainActivity : ComponentActivity() {
 fun PantallaPrincipal(
     onClientesClick: () -> Unit,
     onLavadasClick: () -> Unit,
-    onMovimientosClick: () -> Unit
+    onMovimientosClick: () -> Unit,
+    onInformesClick: () -> Unit,
 )
 {
 
@@ -112,6 +120,12 @@ fun PantallaPrincipal(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = "Movimientos", fontSize = 18.sp)
+        }
+        Button(
+            onClick = onInformesClick,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = "Informes", fontSize = 18.sp)
         }
     }
 }

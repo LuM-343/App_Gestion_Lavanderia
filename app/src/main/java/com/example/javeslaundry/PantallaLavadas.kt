@@ -16,6 +16,13 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.FilterList
+import com.example.javeslaundry.database.LaundryDao
+import com.example.javeslaundry.database.Lavada
+import com.example.javeslaundry.database.Movimiento
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,17 +48,50 @@ fun PantallaLavadas(
     var estadoPagoSeleccionado by remember { mutableStateOf("Pendiente") }
     var expandedPago by remember { mutableStateOf(false) }
 
+    val opcionesEntrega = listOf("Pendiente", "Entregada")
+    var estadoEntregaSeleccionado by remember { mutableStateOf("Pendiente") }
+    var expandedEntrega by remember { mutableStateOf(false) }
+
     var cantidad by remember { mutableStateOf("") }
     var precio by remember { mutableStateOf("") }
     var busqueda by remember { mutableStateOf("") }
     var lavadaEnEdicion by remember { mutableStateOf<Lavada?>(null) }
 
+    // Filtros
+    var filtroEstadoEntrega by remember { mutableStateOf("Todos") }
+    var filtroEstadoPago by remember { mutableStateOf("Todos") }
+    var mostrarFiltros by remember { mutableStateOf(false) }
+    
+    // Rango de fechas
+    val dateRangePickerState = rememberDateRangePickerState()
+    var mostrarCalendario by remember { mutableStateOf(false) }
+
     // Diálogo de confirmación para eliminar
     var mostrarDialogoEliminar by remember { mutableStateOf(false) }
 
+    val sdfBusqueda = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+
     val lavadasFiltradas = lavadas.filter {
-        it.cliente.contains(busqueda, ignoreCase = true) ||
-                it.tipoPrenda.contains(busqueda, ignoreCase = true)
+        val fechaStr = sdfBusqueda.format(Date(it.fechaCreacion))
+        val coincideBusqueda = it.cliente.contains(busqueda, ignoreCase = true) ||
+                it.tipoPrenda.contains(busqueda, ignoreCase = true) ||
+                fechaStr.contains(busqueda)
+        
+        val coincideEntrega = if (filtroEstadoEntrega == "Todos") true else it.estadoEntrega == filtroEstadoEntrega
+        val coincidePago = if (filtroEstadoPago == "Todos") true else it.estadoPago == filtroEstadoPago
+        
+        val fechaInicio = dateRangePickerState.selectedStartDateMillis
+        val fechaFin = dateRangePickerState.selectedEndDateMillis
+        
+        val coincideFecha = if (fechaInicio != null && fechaFin != null) {
+            it.fechaCreacion in fechaInicio..fechaFin + 86399999 // Incluir el día final completo
+        } else if (fechaInicio != null) {
+            it.fechaCreacion >= fechaInicio
+        } else {
+            true
+        }
+        
+        coincideBusqueda && coincideEntrega && coincidePago && coincideFecha
     }
 
     val clientesFiltrados = clientesRegistrados.filter {
@@ -62,9 +102,36 @@ fun PantallaLavadas(
         clienteNombre = ""
         selectedPrendas = emptySet()
         estadoPagoSeleccionado = "Pendiente"
+        estadoEntregaSeleccionado = "Pendiente"
         cantidad = ""
         precio = ""
         lavadaEnEdicion = null
+    }
+
+    // Diálogo de calendario
+    if (mostrarCalendario) {
+        DatePickerDialog(
+            onDismissRequest = { mostrarCalendario = false },
+            confirmButton = {
+                TextButton(onClick = { mostrarCalendario = false }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    dateRangePickerState.setSelection(null, null)
+                    mostrarCalendario = false 
+                }) {
+                    Text("Limpiar")
+                }
+            }
+        ) {
+            DateRangePicker(
+                state = dateRangePickerState,
+                title = { Text("Selecciona rango de fechas", modifier = Modifier.padding(16.dp)) },
+                modifier = Modifier.height(400.dp)
+            )
+        }
     }
 
     // Diálogo de confirmación de eliminación
@@ -85,7 +152,6 @@ fun PantallaLavadas(
                 TextButton(onClick = {
                     scope.launch {
                         val lavada = lavadaEnEdicion!!
-                        // Si estaba pagada, registrar devolución/egreso
                         if (lavada.estadoPago == "Pagado") {
                             dao.insertarMovimiento(
                                 Movimiento(
@@ -119,6 +185,22 @@ fun PantallaLavadas(
                     IconButton(onClick = onVolver) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
                     }
+                },
+                actions = {
+                    IconButton(onClick = { mostrarCalendario = true }) {
+                        Icon(
+                            Icons.Default.CalendarMonth, 
+                            contentDescription = "Fecha",
+                            tint = if (dateRangePickerState.selectedStartDateMillis != null) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        )
+                    }
+                    IconButton(onClick = { mostrarFiltros = !mostrarFiltros }) {
+                        Icon(
+                            Icons.Default.FilterList, 
+                            contentDescription = "Filtros",
+                            tint = if (filtroEstadoEntrega != "Todos" || filtroEstadoPago != "Todos") MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        )
+                    }
                 }
             )
         }
@@ -130,6 +212,40 @@ fun PantallaLavadas(
                 .padding(padding)
                 .padding(16.dp)
         ) {
+            if (mostrarFiltros) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Filtrar por Entrega:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = filtroEstadoEntrega == "Todos", onClick = { filtroEstadoEntrega = "Todos" })
+                            Text("Todos", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            RadioButton(selected = filtroEstadoEntrega == "Pendiente", onClick = { filtroEstadoEntrega = "Pendiente" })
+                            Text("Pend.", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            RadioButton(selected = filtroEstadoEntrega == "Entregada", onClick = { filtroEstadoEntrega = "Entregada" })
+                            Text("Entreg.", fontSize = 12.sp)
+                        }
+                        
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        
+                        Text("Filtrar por Pago:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = filtroEstadoPago == "Todos", onClick = { filtroEstadoPago = "Todos" })
+                            Text("Todos", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            RadioButton(selected = filtroEstadoPago == "Pendiente", onClick = { filtroEstadoPago = "Pendiente" })
+                            Text("Pend.", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            RadioButton(selected = filtroEstadoPago == "Pagado", onClick = { filtroEstadoPago = "Pagado" })
+                            Text("Pagado", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
 
             // ── Selector de Cliente ──────────────────────────────────────────
             ExposedDropdownMenuBox(
@@ -217,54 +333,73 @@ fun PantallaLavadas(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            OutlinedTextField(
-                value = cantidad,
-                onValueChange = { cantidad = it },
-                label = { Text("Cantidad") },
-                modifier = Modifier.fillMaxWidth()
-            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = cantidad,
+                    onValueChange = { cantidad = it },
+                    label = { Text("Cantidad") },
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = precio,
+                    onValueChange = { precio = it },
+                    label = { Text("Precio") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            OutlinedTextField(
-                value = precio,
-                onValueChange = { precio = it },
-                label = { Text("Precio") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Estado de Pago (solo al editar) ─────────────────────────────
+            // ── Estados (solo al editar) ─────────────────────────────
             if (lavadaEnEdicion != null) {
-                ExposedDropdownMenuBox(
-                    expanded = expandedPago,
-                    onExpandedChange = { expandedPago = !expandedPago },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = estadoPagoSeleccionado,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Estado de pago") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPago) },
-                        modifier = Modifier
-                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
-                            .fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Estado de Pago
+                    ExposedDropdownMenuBox(
                         expanded = expandedPago,
-                        onDismissRequest = { expandedPago = false }
+                        onExpandedChange = { expandedPago = !expandedPago },
+                        modifier = Modifier.weight(1f)
                     ) {
-                        opcionesPago.forEach { pago ->
-                            DropdownMenuItem(
-                                text = { Text(pago) },
-                                onClick = {
-                                    estadoPagoSeleccionado = pago
-                                    expandedPago = false
-                                },
-                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                            )
+                        OutlinedTextField(
+                            value = estadoPagoSeleccionado,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Pago") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPago) },
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(expanded = expandedPago, onDismissRequest = { expandedPago = false }) {
+                            opcionesPago.forEach { pago ->
+                                DropdownMenuItem(
+                                    text = { Text(pago) },
+                                    onClick = { estadoPagoSeleccionado = pago; expandedPago = false },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                        }
+                    }
+
+                    // Estado de Entrega
+                    ExposedDropdownMenuBox(
+                        expanded = expandedEntrega,
+                        onExpandedChange = { expandedEntrega = !expandedEntrega },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        OutlinedTextField(
+                            value = estadoEntregaSeleccionado,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Entrega") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedEntrega) },
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(expanded = expandedEntrega, onDismissRequest = { expandedEntrega = false }) {
+                            opcionesEntrega.forEach { entrega ->
+                                DropdownMenuItem(
+                                    text = { Text(entrega) },
+                                    onClick = { estadoEntregaSeleccionado = entrega; expandedEntrega = false },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
                         }
                     }
                 }
@@ -289,74 +424,55 @@ fun PantallaLavadas(
                         ) {
                             scope.launch {
                                 if (lavadaEnEdicion == null) {
-                                    // ── NUEVA lavada: siempre Pendiente ─────
                                     dao.insertarLavada(
                                         Lavada(
                                             cliente = clienteNombre,
                                             tipoPrenda = tipoPrendaFinal,
                                             cantidad = cantidadInt,
                                             precio = precioDouble,
-                                            estadoPago = "Pendiente"
+                                            estadoPago = "Pendiente",
+                                            estadoEntrega = "Pendiente",
+                                            fechaCreacion = System.currentTimeMillis()
                                         )
                                     )
                                 } else {
-                                    val antesPagado = lavadaEnEdicion!!.estadoPago
-                                        .equals("Pagado", ignoreCase = true)
-                                    val ahoraPagado = estadoPagoSeleccionado
-                                        .equals("Pagado", ignoreCase = true)
+                                    val antesPagado = lavadaEnEdicion!!.estadoPago.equals("Pagado", ignoreCase = true)
+                                    val ahoraPagado = estadoPagoSeleccionado.equals("Pagado", ignoreCase = true)
                                     val precioAnterior = lavadaEnEdicion!!.precio
+                                    
+                                    val fechaEntregaFinal = if (estadoEntregaSeleccionado == "Entregada" && lavadaEnEdicion!!.fechaEntrega == null) {
+                                        System.currentTimeMillis()
+                                    } else if (estadoEntregaSeleccionado == "Pendiente") {
+                                        null
+                                    } else {
+                                        lavadaEnEdicion!!.fechaEntrega
+                                    }
 
-                                    // ── ACTUALIZAR lavada ────────────────────
                                     dao.actualizarLavada(
                                         lavadaEnEdicion!!.copy(
                                             cliente = clienteNombre,
                                             tipoPrenda = tipoPrendaFinal,
                                             cantidad = cantidadInt,
                                             precio = precioDouble,
-                                            estadoPago = estadoPagoSeleccionado
+                                            estadoPago = estadoPagoSeleccionado,
+                                            estadoEntrega = estadoEntregaSeleccionado,
+                                            fechaEntrega = fechaEntregaFinal
                                         )
                                     )
 
                                     when {
-                                        // Caso 1 → Pendiente a Pagado: registrar INGRESO
                                         !antesPagado && ahoraPagado -> {
-                                            dao.insertarMovimiento(
-                                                Movimiento(
-                                                    concepto = "Pago lavada - $clienteNombre ($tipoPrendaFinal)",
-                                                    monto = precioDouble,
-                                                    tipo = "ingreso"
-                                                )
-                                            )
+                                            dao.insertarMovimiento(Movimiento(concepto = "Pago lavada - $clienteNombre ($tipoPrendaFinal)", monto = precioDouble, tipo = "ingreso"))
                                         }
-                                        // Caso 2 → Pagado a Pendiente: registrar EGRESO (reversión)
                                         antesPagado && !ahoraPagado -> {
-                                            dao.insertarMovimiento(
-                                                Movimiento(
-                                                    concepto = "Reversión pago - $clienteNombre ($tipoPrendaFinal)",
-                                                    monto = precioAnterior,
-                                                    tipo = "egreso"
-                                                )
-                                            )
+                                            dao.insertarMovimiento(Movimiento(concepto = "Reversión pago - $clienteNombre ($tipoPrendaFinal)", monto = precioAnterior, tipo = "egreso"))
                                         }
-                                        // Caso 3 → Ya pagado y se cambia el precio: ajuste
                                         antesPagado && ahoraPagado && precioAnterior != precioDouble -> {
                                             val diferencia = precioDouble - precioAnterior
                                             if (diferencia > 0) {
-                                                dao.insertarMovimiento(
-                                                    Movimiento(
-                                                        concepto = "Ajuste precio lavada + $clienteNombre",
-                                                        monto = diferencia,
-                                                        tipo = "ingreso"
-                                                    )
-                                                )
+                                                dao.insertarMovimiento(Movimiento(concepto = "Ajuste precio lavada + $clienteNombre", monto = diferencia, tipo = "ingreso"))
                                             } else {
-                                                dao.insertarMovimiento(
-                                                    Movimiento(
-                                                        concepto = "Ajuste precio lavada - $clienteNombre",
-                                                        monto = -diferencia,
-                                                        tipo = "egreso"
-                                                    )
-                                                )
+                                                dao.insertarMovimiento(Movimiento(concepto = "Ajuste precio lavada - $clienteNombre", monto = -diferencia, tipo = "egreso"))
                                             }
                                         }
                                     }
@@ -374,17 +490,12 @@ fun PantallaLavadas(
                     Button(
                         onClick = { mostrarDialogoEliminar = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
                         Text("Eliminar")
                     }
 
-                    Button(
-                        onClick = { limpiarCampos() },
-                        modifier = Modifier.weight(1f)
-                    ) {
+                    Button(onClick = { limpiarCampos() }, modifier = Modifier.weight(1f)) {
                         Text("Cancelar")
                     }
                 }
@@ -395,7 +506,7 @@ fun PantallaLavadas(
             OutlinedTextField(
                 value = busqueda,
                 onValueChange = { busqueda = it },
-                label = { Text("Buscar lavada...") },
+                label = { Text("Buscar lavada o fecha (dd/mm/aaaa)...") },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -417,6 +528,7 @@ fun PantallaLavadas(
                             selectedPrendas = if (lavada.tipoPrenda.isBlank()) emptySet()
                             else lavada.tipoPrenda.split(", ").toSet()
                             estadoPagoSeleccionado = lavada.estadoPago
+                            estadoEntregaSeleccionado = lavada.estadoEntrega
                             cantidad = lavada.cantidad.toString()
                             precio = lavada.precio.toString()
                         }
@@ -436,19 +548,21 @@ fun EncabezadoTablaLavadas() {
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("ID",      modifier = Modifier.weight(0.5f), fontWeight = FontWeight.Bold)
-        Text("Cliente", modifier = Modifier.weight(2f),   fontWeight = FontWeight.Bold)
-        Text("Prenda",  modifier = Modifier.weight(2f),   fontWeight = FontWeight.Bold)
-        Text("Cant.",   modifier = Modifier.weight(0.7f), fontWeight = FontWeight.Bold)
-        Text("Precio",  modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
-        Text("Estado",  modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
+        Text("Fecha",    modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
+        Text("Cliente",  modifier = Modifier.weight(2f),   fontWeight = FontWeight.Bold)
+        Text("Precio",   modifier = Modifier.weight(1f),   fontWeight = FontWeight.Bold)
+        Text("Entrega",  modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
+        Text("Pago",     modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 fun FilaLavada(lavada: Lavada, onEdit: () -> Unit) {
-    val colorEstado = if (lavada.estadoPago == "Pagado")
-        Color(0xFF2E7D32) else Color(0xFFC62828)
+    val sdf = SimpleDateFormat("dd/MM/yy", Locale.getDefault())
+    val fechaStr = sdf.format(Date(lavada.fechaCreacion))
+    
+    val colorPago = if (lavada.estadoPago == "Pagado") Color(0xFF2E7D32) else Color(0xFFC62828)
+    val colorEntrega = if (lavada.estadoEntrega == "Entregada") Color(0xFF1976D2) else Color(0xFFF57C00)
 
     Row(
         modifier = Modifier
@@ -458,16 +572,22 @@ fun FilaLavada(lavada: Lavada, onEdit: () -> Unit) {
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(lavada.id.toString(),             modifier = Modifier.weight(0.5f))
-        Text(lavada.cliente,                   modifier = Modifier.weight(2f))
-        Text(lavada.tipoPrenda,                modifier = Modifier.weight(2f))
-        Text(lavada.cantidad.toString(),       modifier = Modifier.weight(0.7f))
-        Text("Q ${"%.2f".format(lavada.precio)}", modifier = Modifier.weight(1.2f))
+        Text(fechaStr,                         modifier = Modifier.weight(1.2f), fontSize = 12.sp)
+        Text(lavada.cliente,                   modifier = Modifier.weight(2f),   fontSize = 14.sp)
+        Text("Q${"%.0f".format(lavada.precio)}", modifier = Modifier.weight(1f),   fontSize = 14.sp)
+        Text(
+            lavada.estadoEntrega,
+            modifier = Modifier.weight(1.2f),
+            color = colorEntrega,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp
+        )
         Text(
             lavada.estadoPago,
             modifier = Modifier.weight(1.2f),
-            color = colorEstado,
-            fontWeight = FontWeight.SemiBold
+            color = colorPago,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp
         )
     }
 }
