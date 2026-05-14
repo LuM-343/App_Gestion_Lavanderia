@@ -46,6 +46,19 @@ interface LaundryDao {
     @Insert
     suspend fun insertarMovimiento(movimiento: Movimiento)
 
+    @Update
+    suspend fun actualizarMovimiento(movimiento: Movimiento)
+
+    @Delete
+    suspend fun eliminarMovimiento(movimiento: Movimiento)
+
     @Query("SELECT * FROM movimientos ORDER BY fecha DESC")
     fun obtenerMovimientos(): Flow<List<Movimiento>>
+
+    @Query("SELECT * FROM movimientos WHERE tipo = :tipo ORDER BY fecha DESC")
+    fun obtenerMovimientosPorTipo(tipo: String): Flow<List<Movimiento>>
+
+    // Conceptos únicos por tipo para autocompletado
+    @Query("SELECT DISTINCT concepto FROM movimientos WHERE tipo = :tipo ORDER BY concepto ASC")
+    fun obtenerConceptosPorTipo(tipo: String): Flow<List<String>>
 }
