@@ -1,13 +1,17 @@
 package com.example.javeslaundry
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.javeslaundry.database.LaundryDao
 import com.example.javeslaundry.database.Lavada
@@ -22,6 +26,7 @@ fun PantallaFormularioLavada(
     onVolver: () -> Unit,
     onGuardarExitoso: () -> Unit
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val clientesRegistrados by dao.obtenerClientes().collectAsState(initial = emptyList())
 
@@ -47,7 +52,6 @@ fun PantallaFormularioLavada(
     var estadoPagoSeleccionado by remember { mutableStateOf(lavadaAEditar?.estadoPago ?: "Pendiente") }
     var expandedPago by remember { mutableStateOf(false) }
 
-    // Estado de entrega siempre Pendiente al crear, y bloqueado si se edita (el detalle se encarga de la entrega)
     var estadoEntregaSeleccionado by remember { mutableStateOf(lavadaAEditar?.estadoEntrega ?: "Pendiente") }
 
     var cantidad by remember { mutableStateOf(lavadaAEditar?.cantidad?.toString() ?: "") }
@@ -156,16 +160,31 @@ fun PantallaFormularioLavada(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = cantidad,
-                    onValueChange = { cantidad = it },
+                    onValueChange = { input ->
+                        if (input.all { it.isDigit() }) {
+                            cantidad = input
+                        } else {
+                            Toast.makeText(context, "La cantidad solo acepta números", Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     label = { Text("Cantidad") },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 OutlinedTextField(
                     value = precio,
-                    onValueChange = { precio = it },
-                    label = { Text("Precio") },
+                    onValueChange = { input ->
+                        // Permite números y un solo punto decimal
+                        if (input.isEmpty() || input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) {
+                            precio = input
+                        } else {
+                            Toast.makeText(context, "El precio debe ser un número válido", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    label = { Text("Precio (Q)") },
                     modifier = Modifier.weight(1f),
-                    enabled = !yaPagado // Una vez pagado, no se puede modificar el precio
+                    enabled = !yaPagado,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
             }
 
@@ -181,7 +200,7 @@ fun PantallaFormularioLavada(
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Pago") },
-                        enabled = !yaPagado, // Una vez pagado, no se puede pasar a pendiente
+                        enabled = !yaPagado,
                         modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
                     )
                     if (!yaPagado) {
@@ -193,8 +212,6 @@ fun PantallaFormularioLavada(
                     }
                 }
 
-                // La entrega no se toca desde aquí si estamos editando (se hace desde el detalle)
-                // Y al crear es automáticamente Pendiente (no se muestra)
                 if (!esNueva) {
                     OutlinedTextField(
                         value = estadoEntregaSeleccionado,
@@ -224,44 +241,57 @@ fun PantallaFormularioLavada(
                     val precDouble = precio.toDoubleOrNull()
                     val tipoP = selectedPrendas.joinToString(", ")
 
-                    if (clienteNombre.isNotBlank() && tipoP.isNotBlank() && cantInt != null && precDouble != null) {
-                        scope.launch {
-                            if (esNueva) {
-                                dao.insertarLavada(
-                                    Lavada(
-                                        cliente = clienteNombre,
-                                        tipoPrenda = tipoP,
-                                        cantidad = cantInt,
-                                        precio = precDouble,
-                                        estadoPago = estadoPagoSeleccionado,
-                                        estadoEntrega = "Pendiente"
-                                    )
-                                )
-                                // Si se crea directamente como pagado, registrar ingreso
-                                if (estadoPagoSeleccionado == "Pagado") {
-                                    dao.insertarMovimiento(Movimiento(concepto = "Pago lavada (Nueva): $clienteNombre", monto = precDouble, tipo = "ingreso"))
-                                }
-                            } else {
-                                val antesPagado = lavadaAEditar!!.estadoPago == "Pagado"
-                                val ahoraPagado = estadoPagoSeleccionado == "Pagado"
+                    if (clienteNombre.isBlank()) {
+                        Toast.makeText(context, "Selecciona un cliente", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (tipoP.isBlank()) {
+                        Toast.makeText(context, "Selecciona al menos un tipo de prenda", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (cantInt == null) {
+                        Toast.makeText(context, "Ingresa una cantidad válida", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (precDouble == null) {
+                        Toast.makeText(context, "Ingresa un precio válido", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
 
-                                dao.actualizarLavada(
-                                    lavadaAEditar.copy(
-                                        cliente = clienteNombre,
-                                        tipoPrenda = tipoP,
-                                        cantidad = cantInt,
-                                        precio = precDouble,
-                                        estadoPago = estadoPagoSeleccionado
-                                    )
+                    scope.launch {
+                        if (esNueva) {
+                            dao.insertarLavada(
+                                Lavada(
+                                    cliente = clienteNombre,
+                                    tipoPrenda = tipoP,
+                                    cantidad = cantInt,
+                                    precio = precDouble,
+                                    estadoPago = estadoPagoSeleccionado,
+                                    estadoEntrega = "Pendiente"
                                 )
-
-                                // Solo registrar ingreso si pasó de Pendiente a Pagado
-                                if (!antesPagado && ahoraPagado) {
-                                    dao.insertarMovimiento(Movimiento(concepto = "Pago lavada: $clienteNombre", monto = precDouble, tipo = "ingreso"))
-                                }
+                            )
+                            if (estadoPagoSeleccionado == "Pagado") {
+                                dao.insertarMovimiento(Movimiento(concepto = "Pago lavada (Nueva): $clienteNombre", monto = precDouble, tipo = "ingreso"))
                             }
-                            onGuardarExitoso()
+                        } else {
+                            val antesPagado = lavadaAEditar!!.estadoPago == "Pagado"
+                            val ahoraPagado = estadoPagoSeleccionado == "Pagado"
+
+                            dao.actualizarLavada(
+                                lavadaAEditar.copy(
+                                    cliente = clienteNombre,
+                                    tipoPrenda = tipoP,
+                                    cantidad = cantInt,
+                                    precio = precDouble,
+                                    estadoPago = estadoPagoSeleccionado
+                                )
+                            )
+
+                            if (!antesPagado && ahoraPagado) {
+                                dao.insertarMovimiento(Movimiento(concepto = "Pago lavada: $clienteNombre", monto = precDouble, tipo = "ingreso"))
+                            }
                         }
+                        onGuardarExitoso()
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

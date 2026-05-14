@@ -1,5 +1,6 @@
 package com.example.javeslaundry
 
+import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -32,7 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.javeslaundry.database.Cliente
@@ -45,6 +49,7 @@ fun PantallaClientes(
     dao: LaundryDao,
     onVolver: () -> Unit
 ) {
+    val context = LocalContext.current
     val clientes by dao.obtenerClientes().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
@@ -53,8 +58,9 @@ fun PantallaClientes(
     var direccion by remember { mutableStateOf("") }
     var busqueda by remember { mutableStateOf("") }
 
-    // Nuevo estado para controlar si estamos creando o editando
     var clienteEnEdicion by remember { mutableStateOf<Cliente?>(null) }
+
+    val esTelefonoValido = telefono.length == 8 && telefono.all { it.isDigit() }
 
     val clientesFiltrados = clientes.filter {
         it.nombre.contains(busqueda, ignoreCase = true) ||
@@ -101,9 +107,25 @@ fun PantallaClientes(
 
             OutlinedTextField(
                 value = telefono,
-                onValueChange = { telefono = it },
-                label = { Text("Teléfono") },
-                modifier = Modifier.fillMaxWidth()
+                onValueChange = { input ->
+                    // Filtramos para que solo acepte números y máximo 8 dígitos
+                    if (input.all { it.isDigit() }) {
+                        if (input.length <= 8) {
+                            telefono = input
+                        }
+                    } else {
+                        Toast.makeText(context, "El teléfono solo debe contener números", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                label = { Text("Teléfono (8 dígitos)") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = telefono.isNotEmpty() && !esTelefonoValido,
+                supportingText = {
+                    if (telefono.isNotEmpty() && !esTelefonoValido) {
+                        Text("Debe ingresar exactamente 8 números")
+                    }
+                }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -117,17 +139,15 @@ fun PantallaClientes(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Fila con los botones dinámicos para Agregar/Actualizar y Cancelar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
                     onClick = {
-                        if (nombre.isNotBlank() && telefono.isNotBlank() && direccion.isNotBlank()) {
+                        if (nombre.isNotBlank() && esTelefonoValido && direccion.isNotBlank()) {
                             scope.launch {
                                 if (clienteEnEdicion == null) {
-                                    // Insertar nuevo cliente
                                     dao.insertarCliente(
                                         Cliente(
                                             nombre = nombre,
@@ -135,8 +155,8 @@ fun PantallaClientes(
                                             direccion = direccion
                                         )
                                     )
+                                    Toast.makeText(context, "Cliente guardado", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    // Actualizar cliente existente
                                     dao.actualizarCliente(
                                         clienteEnEdicion!!.copy(
                                             nombre = nombre,
@@ -144,13 +164,17 @@ fun PantallaClientes(
                                             direccion = direccion
                                         )
                                     )
+                                    Toast.makeText(context, "Cliente actualizado", Toast.LENGTH_SHORT).show()
                                 }
-                                // Limpiar los campos después de la acción
                                 nombre = ""
                                 telefono = ""
                                 direccion = ""
                                 clienteEnEdicion = null
                             }
+                        } else if (!esTelefonoValido) {
+                            Toast.makeText(context, "El número de teléfono debe ser de 8 dígitos", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Por favor complete todos los campos", Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -158,7 +182,6 @@ fun PantallaClientes(
                     Text(if (clienteEnEdicion == null) "Agregar" else "Actualizar")
                 }
 
-                // Botón de cancelar, solo visible en modo edición
                 if (clienteEnEdicion != null) {
                     Button(
                         onClick = {
@@ -199,7 +222,6 @@ fun PantallaClientes(
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(clientesFiltrados) { cliente ->
-                    // Agregamos un Box clickeable para cargar los datos en el formulario
                     Box(
                         modifier = Modifier.clickable {
                             clienteEnEdicion = cliente

@@ -47,8 +47,13 @@ fun PantallaInformes(
     val lavadas by dao.obtenerLavadas().collectAsState(initial = emptyList())
     val movimientos by dao.obtenerMovimientos().collectAsState(initial = emptyList())
 
-    var periodoSeleccionado by remember { mutableStateOf("Todo") }
-    val opcionesPeriodo = listOf("Último mes", "Últimos 6 meses", "Todo")
+    // Estados para filtros
+    var periodoSeleccionado by remember { mutableStateOf("Todo el tiempo") }
+    val opcionesPeriodo = listOf("Un día", "1 semana", "Un mes", "6 meses atrás", "Todo el tiempo")
+
+    var incluirLavadas by remember { mutableStateOf(true) }
+    var incluirMovimientos by remember { mutableStateOf(true) }
+    var incluirClientes by remember { mutableStateOf(true) }
 
     // Cálculos para las gráficas del mes actual
     val calendar = Calendar.getInstance()
@@ -60,7 +65,7 @@ fun PantallaInformes(
 
     val movsMes = movimientos.filter { it.fecha >= inicioMes }
 
-    // Segmentar Ingresos por Cliente (Top 4 + Otros)
+    // Segmentar Ingresos por Cliente
     val ingresosData = remember(movsMes) {
         val grouped = movsMes.filter { it.tipo == "ingreso" }
             .groupBy { 
@@ -82,7 +87,7 @@ fun PantallaInformes(
         result
     }
 
-    // Segmentar Egresos por Concepto (Top 4 + Otros)
+    // Segmentar Egresos por Concepto
     val egresosData = remember(movsMes) {
         val grouped = movsMes.filter { it.tipo == "egreso" }
             .groupBy { it.concepto }
@@ -97,21 +102,19 @@ fun PantallaInformes(
         result
     }
 
-    val coloresIngresos = listOf(
-        Color(0xFF4CAF50), Color(0xFF2196F3), Color(0xFF009688), 
-        Color(0xFF00BCD4), Color(0xFF8BC34A)
-    )
-    val coloresEgresos = listOf(
-        Color(0xFFF44336), Color(0xFFFF9800), Color(0xFFFFC107), 
-        Color(0xFFE91E63), Color(0xFF9C27B0)
-    )
+    val coloresIngresos = listOf(Color(0xFF4CAF50), Color(0xFF2196F3), Color(0xFF009688), Color(0xFF00BCD4), Color(0xFF8BC34A))
+    val coloresEgresos = listOf(Color(0xFFF44336), Color(0xFFFF9800), Color(0xFFFFC107), Color(0xFFE91E63), Color(0xFF9C27B0))
 
     val launcherGuardarArchivo = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                val exito = exportarAExcel(context, uri, periodoSeleccionado, clientes, lavadas, movimientos)
+                val exito = exportarAExcel(
+                    context, uri, periodoSeleccionado, 
+                    clientes, lavadas, movimientos,
+                    incluirLavadas, incluirMovimientos, incluirClientes
+                )
                 if (exito) {
                     Toast.makeText(context, "Informe exportado con éxito", Toast.LENGTH_LONG).show()
                 } else {
@@ -141,67 +144,44 @@ fun PantallaInformes(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                "Resumen Estadístico Mensual",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
+            Text("Resumen Estadístico Mensual", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
 
-            // Fila de Gráficas
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                // Gráfica de Ingresos
-                ChartContainer(
-                    title = "Ingresos",
-                    data = ingresosData,
-                    colors = coloresIngresos
-                )
-
-                // Gráfica de Egresos
-                ChartContainer(
-                    title = "Egresos",
-                    data = egresosData,
-                    colors = coloresEgresos
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                ChartContainer(title = "Ingresos", data = ingresosData, colors = coloresIngresos)
+                ChartContainer(title = "Egresos", data = egresosData, colors = coloresEgresos)
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                "Exportar a Excel",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.align(Alignment.Start).padding(bottom = 16.dp)
-            )
+            Text("Configuración de Informe", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.Start).padding(bottom = 16.dp))
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
+            // Selector de Periodo
+            Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Selecciona el periodo del informe:", fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(16.dp))
-
+                    Text("Periodo del informe:", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(8.dp))
                     opcionesPeriodo.forEach { opcion ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { periodoSeleccionado = opcion }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            RadioButton(
-                                selected = (periodoSeleccionado == opcion),
-                                onClick = { periodoSeleccionado = opcion }
-                            )
-                            Text(text = opcion, modifier = Modifier.padding(start = 8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { periodoSeleccionado = opcion }.padding(vertical = 4.dp)) {
+                            RadioButton(selected = (periodoSeleccionado == opcion), onClick = { periodoSeleccionado = opcion })
+                            Text(text = opcion, modifier = Modifier.padding(start = 8.dp), fontSize = 14.sp)
                         }
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Selector de Datos
+            Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Datos a incluir:", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    DataSelectionRow("Lavadas", incluirLavadas) { incluirLavadas = it }
+                    DataSelectionRow("Movimientos (Ingresos/Egresos)", incluirMovimientos) { incluirMovimientos = it }
+                    DataSelectionRow("Lista de Clientes", incluirClientes) { incluirClientes = it }
                 }
             }
 
@@ -209,18 +189,20 @@ fun PantallaInformes(
 
             Button(
                 onClick = {
-                    val sdf = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault())
-                    val nombreArchivo = "Informe_JavesLaundry_${sdf.format(Date())}.xlsx"
-                    launcherGuardarArchivo.launch(nombreArchivo)
+                    if (!incluirLavadas && !incluirMovimientos && !incluirClientes) {
+                        Toast.makeText(context, "Selecciona al menos un tipo de dato", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val sdf = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+                        val nombreArchivo = "Reporte_${periodoSeleccionado.replace(" ", "_")}_${sdf.format(Date())}.xlsx"
+                        launcherGuardarArchivo.launch(nombreArchivo)
+                    }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = MaterialTheme.shapes.medium
             ) {
                 Icon(Icons.Default.Download, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Generar y Descargar Excel")
+                Text("GENERAR INFORME EXCEL")
             }
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -229,41 +211,22 @@ fun PantallaInformes(
 }
 
 @Composable
-fun ChartContainer(
-    title: String,
-    data: List<Pair<String, Double>>,
-    colors: List<Color>
-) {
+fun DataSelectionRow(label: String, isChecked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!isChecked) }.padding(vertical = 4.dp)) {
+        Checkbox(checked = isChecked, onCheckedChange = onCheckedChange)
+        Text(text = label, modifier = Modifier.padding(start = 8.dp), fontSize = 14.sp)
+    }
+}
+
+@Composable
+fun ChartContainer(title: String, data: List<Pair<String, Double>>, colors: List<Color>) {
     val total = data.sumOf { it.second }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(160.dp)) {
         Text(title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(12.dp))
-        
-        PieChart(
-            data = data.mapIndexed { index, pair -> pair.second to colors[index % colors.size] }, 
-            modifier = Modifier.size(110.dp)
-        )
-        
+        PieChart(data = data.mapIndexed { index, pair -> pair.second to colors[index % colors.size] }, modifier = Modifier.size(110.dp))
         Spacer(modifier = Modifier.height(12.dp))
         Text("Total: Q ${"%.2f".format(total)}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            data.forEachIndexed { index, (label, value) ->
-                Row(verticalAlignment = Alignment.Top) {
-                    Surface(
-                        modifier = Modifier.size(8.dp).padding(top = 4.dp), 
-                        color = colors[index % colors.size], 
-                        shape = MaterialTheme.shapes.extraSmall
-                    ) {}
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Column {
-                        Text(label, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 2)
-                        Text("Q ${"%.0f".format(value)}", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -277,13 +240,7 @@ fun PieChart(data: List<Pair<Double, Color>>, modifier: Modifier = Modifier) {
             var startAngle = -90f
             data.forEach { (value, color) ->
                 val sweepAngle = (value / total * 360f).toFloat()
-                drawArc(
-                    color = color,
-                    startAngle = startAngle,
-                    sweepAngle = sweepAngle,
-                    useCenter = true,
-                    size = Size(size.width, size.height)
-                )
+                drawArc(color = color, startAngle = startAngle, sweepAngle = sweepAngle, useCenter = true, size = Size(size.width, size.height))
                 startAngle += sweepAngle
             }
         }
@@ -296,75 +253,79 @@ suspend fun exportarAExcel(
     periodo: String,
     clientes: List<Cliente>,
     lavadas: List<Lavada>,
-    movimientos: List<Movimiento>
+    movimientos: List<Movimiento>,
+    incluirLavadas: Boolean,
+    incluirMovimientos: Boolean,
+    incluirClientes: Boolean
 ): Boolean = withContext(Dispatchers.IO) {
     try {
         val workbook = XSSFWorkbook()
         val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
         
+        val cal = Calendar.getInstance()
         val fechaLimite = when (periodo) {
-            "Último mes" -> {
-                val cal = Calendar.getInstance()
-                cal.add(Calendar.MONTH, -1)
-                cal.timeInMillis
-            }
-            "Últimos 6 meses" -> {
-                val cal = Calendar.getInstance()
-                cal.add(Calendar.MONTH, -6)
-                cal.timeInMillis
-            }
+            "Un día" -> { cal.add(Calendar.DAY_OF_YEAR, -1); cal.timeInMillis }
+            "1 semana" -> { cal.add(Calendar.WEEK_OF_YEAR, -1); cal.timeInMillis }
+            "Un mes" -> { cal.add(Calendar.MONTH, -1); cal.timeInMillis }
+            "6 meses atrás" -> { cal.add(Calendar.MONTH, -6); cal.timeInMillis }
             else -> 0L
         }
 
         // 1. Hoja de Lavadas
-        val sheetLavadas = workbook.createSheet("Lavadas")
-        val headerLavadas = sheetLavadas.createRow(0)
-        val headersL = listOf("ID", "Fecha Creación", "Cliente", "Prenda", "Cantidad", "Precio", "Estado Pago", "Estado Entrega", "Fecha Entrega")
-        headersL.forEachIndexed { i, h -> headerLavadas.createCell(i).setCellValue(h) }
+        if (incluirLavadas) {
+            val sheetLavadas = workbook.createSheet("Lavadas")
+            val headerLavadas = sheetLavadas.createRow(0)
+            val headersL = listOf("ID", "Fecha Creación", "Cliente", "Prenda", "Cantidad", "Precio", "Estado Pago", "Estado Entrega", "Fecha Entrega")
+            headersL.forEachIndexed { i, h -> headerLavadas.createCell(i).setCellValue(h) }
 
-        var rowIdxL = 1
-        lavadas.filter { it.fechaCreacion >= fechaLimite }.forEach { lavada ->
-            val row = sheetLavadas.createRow(rowIdxL++)
-            row.createCell(0).setCellValue(lavada.id.toDouble())
-            row.createCell(1).setCellValue(sdf.format(Date(lavada.fechaCreacion)))
-            row.createCell(2).setCellValue(lavada.cliente)
-            row.createCell(3).setCellValue(lavada.tipoPrenda)
-            row.createCell(4).setCellValue(lavada.cantidad.toDouble())
-            row.createCell(5).setCellValue(lavada.precio)
-            row.createCell(6).setCellValue(lavada.estadoPago)
-            row.createCell(7).setCellValue(lavada.estadoEntrega)
-            row.createCell(8).setCellValue(lavada.fechaEntrega?.let { sdf.format(Date(it)) } ?: "Pendiente")
+            var rowIdxL = 1
+            lavadas.filter { it.fechaCreacion >= fechaLimite }.forEach { lavada ->
+                val row = sheetLavadas.createRow(rowIdxL++)
+                row.createCell(0).setCellValue(lavada.id.toDouble())
+                row.createCell(1).setCellValue(sdf.format(Date(lavada.fechaCreacion)))
+                row.createCell(2).setCellValue(lavada.cliente)
+                row.createCell(3).setCellValue(lavada.tipoPrenda)
+                row.createCell(4).setCellValue(lavada.cantidad.toDouble())
+                row.createCell(5).setCellValue(lavada.precio)
+                row.createCell(6).setCellValue(lavada.estadoPago)
+                row.createCell(7).setCellValue(lavada.estadoEntrega)
+                row.createCell(8).setCellValue(lavada.fechaEntrega?.let { sdf.format(Date(it)) } ?: "Pendiente")
+            }
         }
 
-        // 2. Hoja de Clientes
-        val sheetClientes = workbook.createSheet("Clientes")
-        val headerClientes = sheetClientes.createRow(0)
-        val headersC = listOf("ID", "Nombre", "Teléfono", "Dirección")
-        headersC.forEachIndexed { i, h -> headerClientes.createCell(i).setCellValue(h) }
+        // 2. Hoja de Movimientos
+        if (incluirMovimientos) {
+            val sheetMovs = workbook.createSheet("Movimientos")
+            val headerMovs = sheetMovs.createRow(0)
+            val headersM = listOf("ID", "Fecha", "Concepto", "Monto", "Tipo")
+            headersM.forEachIndexed { i, h -> headerMovs.createCell(i).setCellValue(h) }
 
-        var rowIdxC = 1
-        clientes.forEach { cliente ->
-            val row = sheetClientes.createRow(rowIdxC++)
-            row.createCell(0).setCellValue(cliente.id.toDouble())
-            row.createCell(1).setCellValue(cliente.nombre)
-            row.createCell(2).setCellValue(cliente.telefono)
-            row.createCell(3).setCellValue(cliente.direccion)
+            var rowIdxM = 1
+            movimientos.filter { it.fecha >= fechaLimite }.forEach { mov ->
+                val row = sheetMovs.createRow(rowIdxM++)
+                row.createCell(0).setCellValue(mov.id.toDouble())
+                row.createCell(1).setCellValue(sdf.format(Date(mov.fecha)))
+                row.createCell(2).setCellValue(mov.concepto)
+                row.createCell(3).setCellValue(mov.monto)
+                row.createCell(4).setCellValue(mov.tipo)
+            }
         }
 
-        // 3. Hoja de Movimientos
-        val sheetMovs = workbook.createSheet("Movimientos")
-        val headerMovs = sheetMovs.createRow(0)
-        val headersM = listOf("ID", "Fecha", "Concepto", "Monto", "Tipo")
-        headersM.forEachIndexed { i, h -> headerMovs.createCell(i).setCellValue(h) }
+        // 3. Hoja de Clientes
+        if (incluirClientes) {
+            val sheetClientes = workbook.createSheet("Clientes")
+            val headerClientes = sheetClientes.createRow(0)
+            val headersC = listOf("ID", "Nombre", "Teléfono", "Dirección")
+            headersC.forEachIndexed { i, h -> headerClientes.createCell(i).setCellValue(h) }
 
-        var rowIdxM = 1
-        movimientos.filter { it.fecha >= fechaLimite }.forEach { mov ->
-            val row = sheetMovs.createRow(rowIdxM++)
-            row.createCell(0).setCellValue(mov.id.toDouble())
-            row.createCell(1).setCellValue(sdf.format(Date(mov.fecha)))
-            row.createCell(2).setCellValue(mov.concepto)
-            row.createCell(3).setCellValue(mov.monto)
-            row.createCell(4).setCellValue(mov.tipo)
+            var rowIdxC = 1
+            clientes.forEach { cliente ->
+                val row = sheetClientes.createRow(rowIdxC++)
+                row.createCell(0).setCellValue(cliente.id.toDouble())
+                row.createCell(1).setCellValue(cliente.nombre)
+                row.createCell(2).setCellValue(cliente.telefono)
+                row.createCell(3).setCellValue(cliente.direccion)
+            }
         }
 
         context.contentResolver.openOutputStream(uri)?.use { outputStream ->
