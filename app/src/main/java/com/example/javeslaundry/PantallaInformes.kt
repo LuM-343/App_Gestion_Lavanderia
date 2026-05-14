@@ -5,8 +5,11 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
@@ -14,6 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,6 +50,62 @@ fun PantallaInformes(
     var periodoSeleccionado by remember { mutableStateOf("Todo") }
     val opcionesPeriodo = listOf("Último mes", "Últimos 6 meses", "Todo")
 
+    // Cálculos para las gráficas del mes actual
+    val calendar = Calendar.getInstance()
+    calendar.set(Calendar.DAY_OF_MONTH, 1)
+    calendar.set(Calendar.HOUR_OF_DAY, 0)
+    calendar.set(Calendar.MINUTE, 0)
+    calendar.set(Calendar.SECOND, 0)
+    val inicioMes = calendar.timeInMillis
+
+    val movsMes = movimientos.filter { it.fecha >= inicioMes }
+
+    // Segmentar Ingresos por Cliente (Top 4 + Otros)
+    val ingresosData = remember(movsMes) {
+        val grouped = movsMes.filter { it.tipo == "ingreso" }
+            .groupBy { 
+                val c = it.concepto
+                when {
+                    c.contains("Pago lavada:", ignoreCase = true) -> c.substringAfter(":").trim().split(" (")[0]
+                    c.contains("Pago lavada -", ignoreCase = true) -> c.substringAfter("-").trim().split(" (")[0]
+                    else -> c
+                }
+            }
+            .mapValues { it.value.sumOf { m -> m.monto } }
+            .toList()
+            .sortedByDescending { it.second }
+        
+        val top = grouped.take(4)
+        val rest = grouped.drop(4).sumOf { it.second }
+        val result = top.toMutableList()
+        if (rest > 0) result.add("Otros" to rest)
+        result
+    }
+
+    // Segmentar Egresos por Concepto (Top 4 + Otros)
+    val egresosData = remember(movsMes) {
+        val grouped = movsMes.filter { it.tipo == "egreso" }
+            .groupBy { it.concepto }
+            .mapValues { it.value.sumOf { m -> m.monto } }
+            .toList()
+            .sortedByDescending { it.second }
+        
+        val top = grouped.take(4)
+        val rest = grouped.drop(4).sumOf { it.second }
+        val result = top.toMutableList()
+        if (rest > 0) result.add("Otros" to rest)
+        result
+    }
+
+    val coloresIngresos = listOf(
+        Color(0xFF4CAF50), Color(0xFF2196F3), Color(0xFF009688), 
+        Color(0xFF00BCD4), Color(0xFF8BC34A)
+    )
+    val coloresEgresos = listOf(
+        Color(0xFFF44336), Color(0xFFFF9800), Color(0xFFFFC107), 
+        Color(0xFFE91E63), Color(0xFF9C27B0)
+    )
+
     val launcherGuardarArchivo = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ) { uri: Uri? ->
@@ -63,7 +124,7 @@ fun PantallaInformes(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Informes y Exportación", fontWeight = FontWeight.Bold) },
+                title = { Text("Informes y Estadísticas", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onVolver) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -76,19 +137,51 @@ fun PantallaInformes(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                "Exportar datos a Excel",
+                "Resumen Estadístico Mensual",
                 fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 24.dp)
+            )
+
+            // Fila de Gráficas
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                // Gráfica de Ingresos
+                ChartContainer(
+                    title = "Ingresos",
+                    data = ingresosData,
+                    colors = coloresIngresos
+                )
+
+                // Gráfica de Egresos
+                ChartContainer(
+                    title = "Egresos",
+                    data = egresosData,
+                    colors = coloresEgresos
+                )
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                "Exportar a Excel",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.Start).padding(bottom = 16.dp)
             )
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Selecciona el periodo del informe:", fontWeight = FontWeight.Medium)
@@ -129,15 +222,70 @@ fun PantallaInformes(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Generar y Descargar Excel")
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
             
-            Text(
-                "El archivo contendrá 3 hojas separadas:\n• Lavadas\n• Clientes\n• Movimientos",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 20.sp
-            )
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+fun ChartContainer(
+    title: String,
+    data: List<Pair<String, Double>>,
+    colors: List<Color>
+) {
+    val total = data.sumOf { it.second }
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(160.dp)) {
+        Text(title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        PieChart(
+            data = data.mapIndexed { index, pair -> pair.second to colors[index % colors.size] }, 
+            modifier = Modifier.size(110.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Total: Q ${"%.2f".format(total)}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            data.forEachIndexed { index, (label, value) ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Surface(
+                        modifier = Modifier.size(8.dp).padding(top = 4.dp), 
+                        color = colors[index % colors.size], 
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {}
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column {
+                        Text(label, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 2)
+                        Text("Q ${"%.0f".format(value)}", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PieChart(data: List<Pair<Double, Color>>, modifier: Modifier = Modifier) {
+    val total = data.sumOf { it.first }
+    Canvas(modifier = modifier) {
+        if (total == 0.0) {
+            drawCircle(color = Color.LightGray, radius = size.minDimension / 2)
+        } else {
+            var startAngle = -90f
+            data.forEach { (value, color) ->
+                val sweepAngle = (value / total * 360f).toFloat()
+                drawArc(
+                    color = color,
+                    startAngle = startAngle,
+                    sweepAngle = sweepAngle,
+                    useCenter = true,
+                    size = Size(size.width, size.height)
+                )
+                startAngle += sweepAngle
+            }
         }
     }
 }
