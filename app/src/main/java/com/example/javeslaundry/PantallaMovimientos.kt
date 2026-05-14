@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,11 +34,15 @@ fun PantallaMovimientos(
     onAgregarMovimiento: () -> Unit
 ) {
     val movimientosDesc by dao.obtenerMovimientos().collectAsState(initial = emptyList())
-    val movimientosAsc  = movimientosDesc.reversed()
+    val movimientosAsc  = movimientosDesc.sortedBy { it.fecha }
 
     val formatoFecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
 
-    // Calcular balance acumulado en orden cronológico
+    // Rango de fechas
+    val dateRangePickerState = rememberDateRangePickerState()
+    var mostrarCalendario by remember { mutableStateOf(false) }
+
+    // Calcular balance acumulado en orden cronológico (siempre sobre el total para mantener coherencia)
     val balances    = mutableListOf<Double>()
     var acumulado   = 0.0
     for (mov in movimientosAsc) {
@@ -45,8 +50,48 @@ fun PantallaMovimientos(
         balances.add(acumulado)
     }
 
-    val filas        = movimientosAsc.zip(balances).reversed()
+    val todasLasFilas = movimientosAsc.zip(balances).reversed()
+    
+    val filasFiltradas = todasLasFilas.filter { (mov, _) ->
+        val fechaInicio = dateRangePickerState.selectedStartDateMillis
+        val fechaFin = dateRangePickerState.selectedEndDateMillis
+        
+        if (fechaInicio != null && fechaFin != null) {
+            mov.fecha in fechaInicio..fechaFin + 86399999
+        } else if (fechaInicio != null) {
+            mov.fecha >= fechaInicio
+        } else {
+            true
+        }
+    }
+
     val balanceFinal = balances.lastOrNull() ?: 0.0
+
+    // Diálogo de calendario
+    if (mostrarCalendario) {
+        DatePickerDialog(
+            onDismissRequest = { mostrarCalendario = false },
+            confirmButton = {
+                TextButton(onClick = { mostrarCalendario = false }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    dateRangePickerState.setSelection(null, null)
+                    mostrarCalendario = false 
+                }) {
+                    Text("Limpiar")
+                }
+            }
+        ) {
+            DateRangePicker(
+                state = dateRangePickerState,
+                title = { Text("Selecciona rango de fechas", modifier = Modifier.padding(16.dp)) },
+                modifier = Modifier.height(400.dp)
+            )
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -57,6 +102,15 @@ fun PantallaMovimientos(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { mostrarCalendario = true }) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = "Filtrar por fecha",
+                            tint = if (dateRangePickerState.selectedStartDateMillis != null) MaterialTheme.colorScheme.primary else LocalContentColor.current
                         )
                     }
                 }
@@ -111,9 +165,7 @@ fun PantallaMovimientos(
             EncabezadoTablaMovimientos()
 
             LazyColumn {
-                items(filas) { fila ->
-                    val mov     = fila.first
-                    val balance = fila.second
+                items(filasFiltradas) { (mov, balance) ->
                     FilaMovimiento(
                         fecha    = formatoFecha.format(Date(mov.fecha)),
                         concepto = mov.concepto,

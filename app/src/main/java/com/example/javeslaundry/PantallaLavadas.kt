@@ -69,13 +69,9 @@ fun PantallaLavadas(
     // Diálogo de confirmación para eliminar
     var mostrarDialogoEliminar by remember { mutableStateOf(false) }
 
-    val sdfBusqueda = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-
     val lavadasFiltradas = lavadas.filter {
-        val fechaStr = sdfBusqueda.format(Date(it.fechaCreacion))
         val coincideBusqueda = it.cliente.contains(busqueda, ignoreCase = true) ||
-                it.tipoPrenda.contains(busqueda, ignoreCase = true) ||
-                fechaStr.contains(busqueda)
+                it.tipoPrenda.contains(busqueda, ignoreCase = true)
         
         val coincideEntrega = if (filtroEstadoEntrega == "Todos") true else it.estadoEntrega == filtroEstadoEntrega
         val coincidePago = if (filtroEstadoPago == "Todos") true else it.estadoPago == filtroEstadoPago
@@ -84,7 +80,7 @@ fun PantallaLavadas(
         val fechaFin = dateRangePickerState.selectedEndDateMillis
         
         val coincideFecha = if (fechaInicio != null && fechaFin != null) {
-            it.fechaCreacion in fechaInicio..fechaFin + 86399999 // Incluir el día final completo
+            it.fechaCreacion in fechaInicio..fechaFin + 86399999
         } else if (fechaInicio != null) {
             it.fechaCreacion >= fechaInicio
         } else {
@@ -506,7 +502,7 @@ fun PantallaLavadas(
             OutlinedTextField(
                 value = busqueda,
                 onValueChange = { busqueda = it },
-                label = { Text("Buscar lavada o fecha (dd/mm/aaaa)...") },
+                label = { Text("Buscar lavada...") },
                 modifier = Modifier.fillMaxWidth()
             )
 
