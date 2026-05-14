@@ -11,6 +11,7 @@ ksp = "2.2.10-2.0.2"
 room = "2.8.4"
 composeBom = "2026.03.00"
 poi = "5.2.5"
+itext = "7.1.15"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -31,6 +32,9 @@ room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 poi-ooxml = { group = "org.apache.poi", name = "poi-ooxml", version.ref = "poi" }
+itext-kernel = { group = "com.itextpdf", name = "kernel", version.ref = "itext" }
+itext-layout = { group = "com.itextpdf", name = "layout", version.ref = "itext" }
+itext-io = { group = "com.itextpdf", name = "io", version.ref = "itext" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

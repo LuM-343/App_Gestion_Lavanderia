@@ -42,6 +42,7 @@ android {
             excludes += "META-INF/LICENSE"
             excludes += "META-INF/LICENSE.txt"
             excludes += "META-INF/NOTICE.txt"
+            excludes += "META-INF/INDEX.LIST"
         }
     }
 }
@@ -69,4 +70,9 @@ dependencies {
     
     // Excel Export
     implementation(libs.poi.ooxml)
+
+    // PDF Generation (iText)
+    implementation(libs.itext.kernel)
+    implementation(libs.itext.layout)
+    implementation(libs.itext.io)
 }
