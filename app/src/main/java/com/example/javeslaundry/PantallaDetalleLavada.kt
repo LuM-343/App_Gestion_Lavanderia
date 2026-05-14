@@ -72,7 +72,7 @@ fun PantallaDetalleLavada(
                     }
                 },
                 actions = {
-                    // Una vez entregada, no se puede editar
+                    // Una vez entregada, no se puede editar el resto de datos
                     if (!esEntregada) {
                         IconButton(onClick = onEditar) {
                             Icon(Icons.Default.Edit, contentDescription = "Editar")
@@ -122,7 +122,7 @@ fun PantallaDetalleLavada(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        "Esta lavada ya fue entregada y no puede modificarse.",
+                        "Esta lavada ya fue entregada. Solo se permite actualizar el pago si está pendiente.",
                         modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -136,7 +136,7 @@ fun PantallaDetalleLavada(
             Text("Acciones", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Botón de Pago: Deshabilitado si ya está pagado o si ya se entregó
+                // Botón de Pago: Habilitado si no está pagado (aunque esté entregada)
                 Button(
                     onClick = {
                         scope.launch {
@@ -146,7 +146,7 @@ fun PantallaDetalleLavada(
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = !esPagada && !esEntregada,
+                    enabled = !esPagada,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                 ) {
                     Text(if (esPagada) "Pagado" else "Marcar Pagado", fontSize = 12.sp)
