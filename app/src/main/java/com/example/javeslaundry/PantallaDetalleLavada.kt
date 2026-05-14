@@ -1,6 +1,8 @@
 package com.example.javeslaundry
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -11,7 +13,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -21,16 +22,20 @@ import androidx.compose.ui.unit.sp
 import com.example.javeslaundry.database.LaundryDao
 import com.example.javeslaundry.database.Lavada
 import com.example.javeslaundry.database.Movimiento
+import com.itextpdf.io.image.ImageDataFactory
 import com.itextpdf.kernel.pdf.PdfDocument
 import com.itextpdf.kernel.pdf.PdfWriter
 import com.itextpdf.kernel.pdf.canvas.draw.SolidLine
 import com.itextpdf.layout.Document
+import com.itextpdf.layout.element.Image
 import com.itextpdf.layout.element.LineSeparator
 import com.itextpdf.layout.element.Paragraph
+import com.itextpdf.layout.property.HorizontalAlignment
 import com.itextpdf.layout.property.TextAlignment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -86,11 +91,16 @@ fun PantallaDetalleLavada(
                             )
                         }
                         dao.eliminarLavada(lavada)
+                        mostrarDialogoEliminar = false
                         onEliminarExitoso()
                     }
                 }) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { mostrarDialogoEliminar = false }) { Text("Cancelar") } }
+            dismissButton = { 
+                TextButton(onClick = { mostrarDialogoEliminar = false }) { 
+                    Text("Cancelar") 
+                } 
+            }
         )
     }
 
@@ -104,7 +114,6 @@ fun PantallaDetalleLavada(
                     }
                 },
                 actions = {
-                    // Si ya se entregó, se bloquea la edición general para integridad de datos
                     if (!esEntregada) {
                         IconButton(onClick = onEditar) {
                             Icon(Icons.Default.Edit, contentDescription = "Editar")
@@ -136,7 +145,7 @@ fun PantallaDetalleLavada(
                     InfoRow(label = "Precio Total:", value = "Q ${"%.2f".format(lavada.precio)}")
                     InfoRow(label = "Fecha Recibido:", value = sdf.format(Date(lavada.fechaCreacion)))
                     
-                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     
                     InfoRow(
                         label = "Estado Pago:", 
@@ -175,7 +184,6 @@ fun PantallaDetalleLavada(
             Text("Gestión de Estado", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Botón de Pago: Siempre disponible si está pendiente, incluso si se entregó
                 Button(
                     onClick = {
                         scope.launch {
@@ -191,7 +199,6 @@ fun PantallaDetalleLavada(
                     Text(if (esPagada) "PAGADO" else "COBRAR", fontWeight = FontWeight.Bold)
                 }
 
-                // Botón de Entrega: Disponible solo si no se ha entregado
                 Button(
                     onClick = {
                         scope.launch {
@@ -252,13 +259,31 @@ suspend fun generarPdfTicket(context: Context, uri: Uri, lavada: Lavada): Boolea
             val writer = PdfWriter(outputStream)
             val pdf = PdfDocument(writer)
             val document = Document(pdf)
-
             val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
 
-            // Encabezado del Negocio
+            // --- INTENTO DE AGREGAR LOGO ---
+            try {
+                // Se asume que guardaste la imagen como res/drawable/logo_laundry.png
+                val bitmap = BitmapFactory.decodeResource(context.resources, R.drawable.logotipo)
+                if (bitmap != null) {
+                    val stream = ByteArrayOutputStream()
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                    val imageData = ImageDataFactory.create(stream.toByteArray())
+                    val logo = Image(imageData).apply {
+                        setWidth(120f)
+                        setHorizontalAlignment(HorizontalAlignment.CENTER)
+                    }
+                    document.add(logo)
+                }
+            } catch (e: Exception) {
+                // Si la imagen no existe, simplemente continuamos con el texto
+                e.printStackTrace()
+            }
+
+            // Encabezado
             document.add(Paragraph("JAVE'S LAUNDRY")
                 .setTextAlignment(TextAlignment.CENTER)
-                .setFontSize(24f)
+                .setFontSize(22f)
                 .setBold())
             document.add(Paragraph("Servicio de Lavandería")
                 .setTextAlignment(TextAlignment.CENTER)
@@ -268,7 +293,7 @@ suspend fun generarPdfTicket(context: Context, uri: Uri, lavada: Lavada): Boolea
             document.add(LineSeparator(SolidLine()))
             document.add(Paragraph("\n"))
 
-            // Cuerpo del Ticket
+            // Cuerpo
             document.add(Paragraph("TICKET DE SERVICIO")
                 .setBold()
                 .setFontSize(14f)
