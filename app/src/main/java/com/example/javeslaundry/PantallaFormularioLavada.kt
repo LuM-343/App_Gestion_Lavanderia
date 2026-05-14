@@ -29,8 +29,8 @@ fun PantallaFormularioLavada(
     var expandedClientes by remember { mutableStateOf(false) }
 
     val opcionesPrendas = listOf(
-        "Camisa", "Pantalón", "Vestido", "Saco",
-        "Chaqueta", "Cobija", "Edredón", "Otros"
+        "Ropa Comun", "Ropa Delicada", "Ropa Muy Sucia",
+        "Edredones/Ponchos", "Sacos/Vestidos", "Otros"
     )
     var selectedPrendas by remember { 
         mutableStateOf(
@@ -120,11 +120,11 @@ fun PantallaFormularioLavada(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    value = if (selectedPrendas.isEmpty()) "Seleccionar prendas"
+                    value = if (selectedPrendas.isEmpty()) "Seleccionar Tipo de Ropa"
                     else selectedPrendas.joinToString(", "),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Tipo de prenda") },
+                    label = { Text("Tipo de ropa") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPrendas) },
                     modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
                 )

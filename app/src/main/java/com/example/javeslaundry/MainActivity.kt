@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             JavesLaundryTheme {
                 var pantalla by remember { mutableStateOf("principal") }
-                var lavadaAEditar by remember { mutableStateOf<Lavada?>(null) }
+                var lavadaSeleccionada by remember { mutableStateOf<Lavada?>(null) }
 
                 when (pantalla) {
                     "principal" -> PantallaPrincipal(
@@ -42,18 +42,28 @@ class MainActivity : ComponentActivity() {
                         dao = dao,
                         onVolver = { pantalla = "principal" },
                         onAgregarLavada = { 
-                            lavadaAEditar = null
+                            lavadaSeleccionada = null
                             pantalla = "formularioLavada" 
                         },
-                        onEditarLavada = { lavada: Lavada ->
-                            lavadaAEditar = lavada
-                            pantalla = "formularioLavada"
+                        onVerDetalle = { lavada ->
+                            lavadaSeleccionada = lavada
+                            pantalla = "detalleLavada"
                         }
+                    )
+                    "detalleLavada" -> PantallaDetalleLavada(
+                        dao = dao,
+                        lavada = lavadaSeleccionada!!,
+                        onVolver = { pantalla = "lavadas" },
+                        onEditar = { pantalla = "formularioLavada" },
+                        onEliminarExitoso = { pantalla = "lavadas" }
                     )
                     "formularioLavada" -> PantallaFormularioLavada(
                         dao = dao,
-                        lavadaAEditar = lavadaAEditar,
-                        onVolver = { pantalla = "lavadas" },
+                        lavadaAEditar = lavadaSeleccionada,
+                        onVolver = { 
+                            if (lavadaSeleccionada == null) pantalla = "lavadas" 
+                            else pantalla = "detalleLavada" 
+                        },
                         onGuardarExitoso = { pantalla = "lavadas" }
                     )
                     "movimientos" -> PantallaMovimientos(

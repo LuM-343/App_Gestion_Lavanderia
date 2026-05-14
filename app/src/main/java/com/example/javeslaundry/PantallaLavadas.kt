@@ -29,7 +29,7 @@ fun PantallaLavadas(
     dao: LaundryDao,
     onVolver: () -> Unit,
     onAgregarLavada: () -> Unit,
-    onEditarLavada: (Lavada) -> Unit
+    onVerDetalle: (Lavada) -> Unit
 ) {
     val lavadas by dao.obtenerLavadas().collectAsState(initial = emptyList())
     
@@ -185,7 +185,7 @@ fun PantallaLavadas(
                 items(lavadasFiltradas) { lavada ->
                     FilaLavada(
                         lavada = lavada,
-                        onEdit = { onEditarLavada(lavada) }
+                        onClick = { onVerDetalle(lavada) }
                     )
                 }
             }
@@ -211,7 +211,7 @@ fun EncabezadoTablaLavadas() {
 }
 
 @Composable
-fun FilaLavada(lavada: Lavada, onEdit: () -> Unit) {
+fun FilaLavada(lavada: Lavada, onClick: () -> Unit) {
     val sdf = SimpleDateFormat("dd/MM/yy", Locale.getDefault())
     val fechaStr = sdf.format(Date(lavada.fechaCreacion))
     
@@ -222,7 +222,7 @@ fun FilaLavada(lavada: Lavada, onEdit: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            .clickable { onEdit() }
+            .clickable { onClick() }
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
