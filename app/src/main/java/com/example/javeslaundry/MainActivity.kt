@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.sp
 import com.example.javeslaundry.ui.theme.JavesLaundryTheme
 import androidx.compose.runtime.*
 import com.example.javeslaundry.database.AppDatabase
+import com.example.javeslaundry.database.Lavada
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,13 +25,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             JavesLaundryTheme {
                 var pantalla by remember { mutableStateOf("principal") }
+                var lavadaAEditar by remember { mutableStateOf<Lavada?>(null) }
 
                 when (pantalla) {
                     "principal" -> PantallaPrincipal(
                         onClientesClick = { pantalla = "clientes" },
                         onLavadasClick = { pantalla = "lavadas" },
                         onMovimientosClick = { pantalla = "movimientos" },
-                        onInformesClick = {pantalla = "informes"}
+                        onInformesClick = { pantalla = "informes" }
                     )
                     "clientes" -> PantallaClientes(
                         dao = dao,
@@ -38,7 +40,21 @@ class MainActivity : ComponentActivity() {
                     )
                     "lavadas" -> PantallaLavadas(
                         dao = dao,
-                        onVolver = { pantalla = "principal" }
+                        onVolver = { pantalla = "principal" },
+                        onAgregarLavada = { 
+                            lavadaAEditar = null
+                            pantalla = "formularioLavada" 
+                        },
+                        onEditarLavada = { lavada: Lavada ->
+                            lavadaAEditar = lavada
+                            pantalla = "formularioLavada"
+                        }
+                    )
+                    "formularioLavada" -> PantallaFormularioLavada(
+                        dao = dao,
+                        lavadaAEditar = lavadaAEditar,
+                        onVolver = { pantalla = "lavadas" },
+                        onGuardarExitoso = { pantalla = "lavadas" }
                     )
                     "movimientos" -> PantallaMovimientos(
                         dao = dao,
@@ -46,8 +62,8 @@ class MainActivity : ComponentActivity() {
                         onAgregarMovimiento = { pantalla = "agregarMovimiento" }
                     )
                     "informes" -> PantallaInformes(
-                        dao= dao,
-                        onVolver = {pantalla = "principal"}
+                        dao = dao,
+                        onVolver = { pantalla = "principal" }
                     )
                     "agregarMovimiento" -> PantallaAgregarMovimiento(
                         onVolver = { pantalla = "movimientos" },
@@ -117,7 +133,9 @@ fun PantallaPrincipal(
         }
         Button(
             onClick = onMovimientosClick,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
         ) {
             Text(text = "Movimientos", fontSize = 18.sp)
         }

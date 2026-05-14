@@ -13,14 +13,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.FilterList
 import com.example.javeslaundry.database.LaundryDao
 import com.example.javeslaundry.database.Lavada
-import com.example.javeslaundry.database.Movimiento
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -28,34 +27,13 @@ import java.util.*
 @Composable
 fun PantallaLavadas(
     dao: LaundryDao,
-    onVolver: () -> Unit
+    onVolver: () -> Unit,
+    onAgregarLavada: () -> Unit,
+    onEditarLavada: (Lavada) -> Unit
 ) {
     val lavadas by dao.obtenerLavadas().collectAsState(initial = emptyList())
-    val clientesRegistrados by dao.obtenerClientes().collectAsState(initial = emptyList())
-    val scope = rememberCoroutineScope()
-
-    var clienteNombre by remember { mutableStateOf("") }
-    var expandedClientes by remember { mutableStateOf(false) }
-
-    val opcionesPrendas = listOf(
-        "Camisa", "Pantalón", "Vestido", "Saco",
-        "Chaqueta", "Cobija", "Edredón", "Otros"
-    )
-    var selectedPrendas by remember { mutableStateOf(setOf<String>()) }
-    var expandedPrendas by remember { mutableStateOf(false) }
-
-    val opcionesPago = listOf("Pendiente", "Pagado")
-    var estadoPagoSeleccionado by remember { mutableStateOf("Pendiente") }
-    var expandedPago by remember { mutableStateOf(false) }
-
-    val opcionesEntrega = listOf("Pendiente", "Entregada")
-    var estadoEntregaSeleccionado by remember { mutableStateOf("Pendiente") }
-    var expandedEntrega by remember { mutableStateOf(false) }
-
-    var cantidad by remember { mutableStateOf("") }
-    var precio by remember { mutableStateOf("") }
+    
     var busqueda by remember { mutableStateOf("") }
-    var lavadaEnEdicion by remember { mutableStateOf<Lavada?>(null) }
 
     // Filtros
     var filtroEstadoEntrega by remember { mutableStateOf("Todos") }
@@ -65,9 +43,6 @@ fun PantallaLavadas(
     // Rango de fechas
     val dateRangePickerState = rememberDateRangePickerState()
     var mostrarCalendario by remember { mutableStateOf(false) }
-
-    // Diálogo de confirmación para eliminar
-    var mostrarDialogoEliminar by remember { mutableStateOf(false) }
 
     val lavadasFiltradas = lavadas.filter {
         val coincideBusqueda = it.cliente.contains(busqueda, ignoreCase = true) ||
@@ -88,20 +63,6 @@ fun PantallaLavadas(
         }
         
         coincideBusqueda && coincideEntrega && coincidePago && coincideFecha
-    }
-
-    val clientesFiltrados = clientesRegistrados.filter {
-        it.nombre.contains(clienteNombre, ignoreCase = true)
-    }
-
-    fun limpiarCampos() {
-        clienteNombre = ""
-        selectedPrendas = emptySet()
-        estadoPagoSeleccionado = "Pendiente"
-        estadoEntregaSeleccionado = "Pendiente"
-        cantidad = ""
-        precio = ""
-        lavadaEnEdicion = null
     }
 
     // Diálogo de calendario
@@ -130,49 +91,6 @@ fun PantallaLavadas(
         }
     }
 
-    // Diálogo de confirmación de eliminación
-    if (mostrarDialogoEliminar && lavadaEnEdicion != null) {
-        AlertDialog(
-            onDismissRequest = { mostrarDialogoEliminar = false },
-            title = { Text("Eliminar lavada") },
-            text = {
-                Text(
-                    if (lavadaEnEdicion!!.estadoPago == "Pagado")
-                        "Esta lavada ya fue pagada (Q ${"%.2f".format(lavadaEnEdicion!!.precio)}). " +
-                                "Se registrará una devolución en movimientos. ¿Deseas continuar?"
-                    else
-                        "¿Seguro que deseas eliminar la lavada de ${lavadaEnEdicion!!.cliente}?"
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        val lavada = lavadaEnEdicion!!
-                        if (lavada.estadoPago == "Pagado") {
-                            dao.insertarMovimiento(
-                                Movimiento(
-                                    concepto = "Devolución / cancelación lavada - ${lavada.cliente}",
-                                    monto = lavada.precio,
-                                    tipo = "egreso"
-                                )
-                            )
-                        }
-                        dao.eliminarLavada(lavada)
-                        limpiarCampos()
-                    }
-                    mostrarDialogoEliminar = false
-                }) {
-                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { mostrarDialogoEliminar = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
-    }
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -199,6 +117,11 @@ fun PantallaLavadas(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = onAgregarLavada) {
+                Icon(Icons.Default.Add, contentDescription = "Agregar Lavada")
+            }
         }
     ) { padding ->
 
@@ -243,262 +166,6 @@ fun PantallaLavadas(
                 }
             }
 
-            // ── Selector de Cliente ──────────────────────────────────────────
-            ExposedDropdownMenuBox(
-                expanded = expandedClientes,
-                onExpandedChange = { expandedClientes = !expandedClientes },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = clienteNombre,
-                    onValueChange = {
-                        clienteNombre = it
-                        expandedClientes = true
-                    },
-                    label = { Text("Cliente") },
-                    modifier = Modifier
-                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true)
-                        .fillMaxWidth(),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedClientes) },
-                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
-                )
-                if (clientesFiltrados.isNotEmpty()) {
-                    ExposedDropdownMenu(
-                        expanded = expandedClientes,
-                        onDismissRequest = { expandedClientes = false }
-                    ) {
-                        clientesFiltrados.forEach { clienteObj ->
-                            DropdownMenuItem(
-                                text = { Text(clienteObj.nombre) },
-                                onClick = {
-                                    clienteNombre = clienteObj.nombre
-                                    expandedClientes = false
-                                },
-                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Selector de Prendas (multi) ──────────────────────────────────
-            ExposedDropdownMenuBox(
-                expanded = expandedPrendas,
-                onExpandedChange = { expandedPrendas = !expandedPrendas },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = if (selectedPrendas.isEmpty()) "Seleccionar prendas"
-                    else selectedPrendas.joinToString(", "),
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Tipo de prenda") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPrendas) },
-                    modifier = Modifier
-                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
-                        .fillMaxWidth()
-                )
-                ExposedDropdownMenu(
-                    expanded = expandedPrendas,
-                    onDismissRequest = { expandedPrendas = false }
-                ) {
-                    opcionesPrendas.forEach { prenda ->
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
-                                        checked = selectedPrendas.contains(prenda),
-                                        onCheckedChange = null
-                                    )
-                                    Text(prenda, modifier = Modifier.padding(start = 8.dp))
-                                }
-                            },
-                            onClick = {
-                                selectedPrendas = if (selectedPrendas.contains(prenda))
-                                    selectedPrendas - prenda
-                                else
-                                    selectedPrendas + prenda
-                            },
-                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = cantidad,
-                    onValueChange = { cantidad = it },
-                    label = { Text("Cantidad") },
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedTextField(
-                    value = precio,
-                    onValueChange = { precio = it },
-                    label = { Text("Precio") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Estados (solo al editar) ─────────────────────────────
-            if (lavadaEnEdicion != null) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Estado de Pago
-                    ExposedDropdownMenuBox(
-                        expanded = expandedPago,
-                        onExpandedChange = { expandedPago = !expandedPago },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        OutlinedTextField(
-                            value = estadoPagoSeleccionado,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Pago") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPago) },
-                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = expandedPago, onDismissRequest = { expandedPago = false }) {
-                            opcionesPago.forEach { pago ->
-                                DropdownMenuItem(
-                                    text = { Text(pago) },
-                                    onClick = { estadoPagoSeleccionado = pago; expandedPago = false },
-                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                                )
-                            }
-                        }
-                    }
-
-                    // Estado de Entrega
-                    ExposedDropdownMenuBox(
-                        expanded = expandedEntrega,
-                        onExpandedChange = { expandedEntrega = !expandedEntrega },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        OutlinedTextField(
-                            value = estadoEntregaSeleccionado,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Entrega") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedEntrega) },
-                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = expandedEntrega, onDismissRequest = { expandedEntrega = false }) {
-                            opcionesEntrega.forEach { entrega ->
-                                DropdownMenuItem(
-                                    text = { Text(entrega) },
-                                    onClick = { estadoEntregaSeleccionado = entrega; expandedEntrega = false },
-                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                                )
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            // ── Botones ──────────────────────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        val cantidadInt = cantidad.toIntOrNull()
-                        val precioDouble = precio.toDoubleOrNull()
-                        val tipoPrendaFinal = selectedPrendas.joinToString(", ")
-
-                        if (clienteNombre.isNotBlank() &&
-                            tipoPrendaFinal.isNotBlank() &&
-                            cantidadInt != null &&
-                            precioDouble != null
-                        ) {
-                            scope.launch {
-                                if (lavadaEnEdicion == null) {
-                                    dao.insertarLavada(
-                                        Lavada(
-                                            cliente = clienteNombre,
-                                            tipoPrenda = tipoPrendaFinal,
-                                            cantidad = cantidadInt,
-                                            precio = precioDouble,
-                                            estadoPago = "Pendiente",
-                                            estadoEntrega = "Pendiente",
-                                            fechaCreacion = System.currentTimeMillis()
-                                        )
-                                    )
-                                } else {
-                                    val antesPagado = lavadaEnEdicion!!.estadoPago.equals("Pagado", ignoreCase = true)
-                                    val ahoraPagado = estadoPagoSeleccionado.equals("Pagado", ignoreCase = true)
-                                    val precioAnterior = lavadaEnEdicion!!.precio
-                                    
-                                    val fechaEntregaFinal = if (estadoEntregaSeleccionado == "Entregada" && lavadaEnEdicion!!.fechaEntrega == null) {
-                                        System.currentTimeMillis()
-                                    } else if (estadoEntregaSeleccionado == "Pendiente") {
-                                        null
-                                    } else {
-                                        lavadaEnEdicion!!.fechaEntrega
-                                    }
-
-                                    dao.actualizarLavada(
-                                        lavadaEnEdicion!!.copy(
-                                            cliente = clienteNombre,
-                                            tipoPrenda = tipoPrendaFinal,
-                                            cantidad = cantidadInt,
-                                            precio = precioDouble,
-                                            estadoPago = estadoPagoSeleccionado,
-                                            estadoEntrega = estadoEntregaSeleccionado,
-                                            fechaEntrega = fechaEntregaFinal
-                                        )
-                                    )
-
-                                    when {
-                                        !antesPagado && ahoraPagado -> {
-                                            dao.insertarMovimiento(Movimiento(concepto = "Pago lavada - $clienteNombre ($tipoPrendaFinal)", monto = precioDouble, tipo = "ingreso"))
-                                        }
-                                        antesPagado && !ahoraPagado -> {
-                                            dao.insertarMovimiento(Movimiento(concepto = "Reversión pago - $clienteNombre ($tipoPrendaFinal)", monto = precioAnterior, tipo = "egreso"))
-                                        }
-                                        antesPagado && ahoraPagado && precioAnterior != precioDouble -> {
-                                            val diferencia = precioDouble - precioAnterior
-                                            if (diferencia > 0) {
-                                                dao.insertarMovimiento(Movimiento(concepto = "Ajuste precio lavada + $clienteNombre", monto = diferencia, tipo = "ingreso"))
-                                            } else {
-                                                dao.insertarMovimiento(Movimiento(concepto = "Ajuste precio lavada - $clienteNombre", monto = -diferencia, tipo = "egreso"))
-                                            }
-                                        }
-                                    }
-                                }
-                                limpiarCampos()
-                            }
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (lavadaEnEdicion == null) "Agregar" else "Actualizar")
-                }
-
-                if (lavadaEnEdicion != null) {
-                    Button(
-                        onClick = { mostrarDialogoEliminar = true },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Eliminar")
-                    }
-
-                    Button(onClick = { limpiarCampos() }, modifier = Modifier.weight(1f)) {
-                        Text("Cancelar")
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
             OutlinedTextField(
                 value = busqueda,
                 onValueChange = { busqueda = it },
@@ -518,16 +185,7 @@ fun PantallaLavadas(
                 items(lavadasFiltradas) { lavada ->
                     FilaLavada(
                         lavada = lavada,
-                        onEdit = {
-                            lavadaEnEdicion = lavada
-                            clienteNombre = lavada.cliente
-                            selectedPrendas = if (lavada.tipoPrenda.isBlank()) emptySet()
-                            else lavada.tipoPrenda.split(", ").toSet()
-                            estadoPagoSeleccionado = lavada.estadoPago
-                            estadoEntregaSeleccionado = lavada.estadoEntrega
-                            cantidad = lavada.cantidad.toString()
-                            precio = lavada.precio.toString()
-                        }
+                        onEdit = { onEditarLavada(lavada) }
                     )
                 }
             }
