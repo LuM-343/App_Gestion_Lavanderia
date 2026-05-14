@@ -32,12 +32,15 @@ fun PantallaDetalleLavada(
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
 
     var mostrarDialogoEliminar by remember { mutableStateOf(false) }
+    
+    val esEntregada = lavada.estadoEntrega == "Entregada"
+    val esPagada = lavada.estadoPago == "Pagado"
 
     if (mostrarDialogoEliminar) {
         AlertDialog(
             onDismissRequest = { mostrarDialogoEliminar = false },
             title = { Text("Eliminar Lavada") },
-            text = { Text("¿Estás seguro de que deseas eliminar esta lavada? Esta acción no se puede deshacer.") },
+            text = { Text("¿Estás seguro de que deseas eliminar esta lavada? Se registrará una devolución en movimientos si ya estaba pagada.") },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -69,8 +72,11 @@ fun PantallaDetalleLavada(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onEditar) {
-                        Icon(Icons.Default.Edit, contentDescription = "Editar")
+                    // Una vez entregada, no se puede editar
+                    if (!esEntregada) {
+                        IconButton(onClick = onEditar) {
+                            Icon(Icons.Default.Edit, contentDescription = "Editar")
+                        }
                     }
                     IconButton(onClick = { mostrarDialogoEliminar = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
@@ -96,16 +102,31 @@ fun PantallaDetalleLavada(
                     InfoRow(
                         label = "Estado Pago:", 
                         value = lavada.estadoPago,
-                        valueColor = if (lavada.estadoPago == "Pagado") Color(0xFF2E7D32) else Color(0xFFC62828)
+                        valueColor = if (esPagada) Color(0xFF2E7D32) else Color(0xFFC62828)
                     )
                     InfoRow(
                         label = "Estado Entrega:", 
                         value = lavada.estadoEntrega,
-                        valueColor = if (lavada.estadoEntrega == "Entregada") Color(0xFF1976D2) else Color(0xFFF57C00)
+                        valueColor = if (esEntregada) Color(0xFF1976D2) else Color(0xFFF57C00)
                     )
                     if (lavada.fechaEntrega != null) {
                         InfoRow(label = "Fecha Entrega:", value = sdf.format(Date(lavada.fechaEntrega!!)))
                     }
+                }
+            }
+
+            if (esEntregada) {
+                Surface(
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Esta lavada ya fue entregada y no puede modificarse.",
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
                 }
             }
 
@@ -115,40 +136,35 @@ fun PantallaDetalleLavada(
             Text("Acciones", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Botón de Pago: Deshabilitado si ya está pagado o si ya se entregó
                 Button(
                     onClick = {
                         scope.launch {
-                            val nuevoEstado = if (lavada.estadoPago == "Pagado") "Pendiente" else "Pagado"
-                            dao.actualizarLavada(lavada.copy(estadoPago = nuevoEstado))
-                            
-                            // Registrar movimiento
-                            if (nuevoEstado == "Pagado") {
-                                dao.insertarMovimiento(Movimiento(concepto = "Pago lavada: ${lavada.cliente}", monto = lavada.precio, tipo = "ingreso"))
-                            } else {
-                                dao.insertarMovimiento(Movimiento(concepto = "Reversión pago: ${lavada.cliente}", monto = lavada.precio, tipo = "egreso"))
-                            }
-                            onVolver() // Refrescar volviendo a la lista o quedandose? El prompt dice "actualizar pago"
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                ) {
-                    Text(if (lavada.estadoPago == "Pagado") "Marcar Pendiente" else "Marcar Pagado", fontSize = 12.sp)
-                }
-
-                Button(
-                    onClick = {
-                        scope.launch {
-                            val nuevoEstado = if (lavada.estadoEntrega == "Entregada") "Pendiente" else "Entregada"
-                            val fechaEntrega = if (nuevoEstado == "Entregada") System.currentTimeMillis() else null
-                            dao.actualizarLavada(lavada.copy(estadoEntrega = nuevoEstado, fechaEntrega = fechaEntrega))
+                            dao.actualizarLavada(lavada.copy(estadoPago = "Pagado"))
+                            dao.insertarMovimiento(Movimiento(concepto = "Pago lavada: ${lavada.cliente}", monto = lavada.precio, tipo = "ingreso"))
                             onVolver()
                         }
                     },
                     modifier = Modifier.weight(1f),
+                    enabled = !esPagada && !esEntregada,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Text(if (esPagada) "Pagado" else "Marcar Pagado", fontSize = 12.sp)
+                }
+
+                // Botón de Entrega: Deshabilitado si ya se entregó
+                Button(
+                    onClick = {
+                        scope.launch {
+                            dao.actualizarLavada(lavada.copy(estadoEntrega = "Entregada", fechaEntrega = System.currentTimeMillis()))
+                            onVolver()
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = !esEntregada,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
                 ) {
-                    Text(if (lavada.estadoEntrega == "Entregada") "Pendiente Entrega" else "Marcar Entregado", fontSize = 12.sp)
+                    Text(if (esEntregada) "Entregado" else "Marcar Entregado", fontSize = 12.sp)
                 }
             }
 

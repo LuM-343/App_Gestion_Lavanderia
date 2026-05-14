@@ -25,6 +25,9 @@ fun PantallaFormularioLavada(
     val scope = rememberCoroutineScope()
     val clientesRegistrados by dao.obtenerClientes().collectAsState(initial = emptyList())
 
+    val esNueva = lavadaAEditar == null
+    val yaPagado = lavadaAEditar?.estadoPago == "Pagado"
+
     var clienteNombre by remember { mutableStateOf(lavadaAEditar?.cliente ?: "") }
     var expandedClientes by remember { mutableStateOf(false) }
 
@@ -44,9 +47,8 @@ fun PantallaFormularioLavada(
     var estadoPagoSeleccionado by remember { mutableStateOf(lavadaAEditar?.estadoPago ?: "Pendiente") }
     var expandedPago by remember { mutableStateOf(false) }
 
-    val opcionesEntrega = listOf("Pendiente", "Entregada")
+    // Estado de entrega siempre Pendiente al crear, y bloqueado si se edita (el detalle se encarga de la entrega)
     var estadoEntregaSeleccionado by remember { mutableStateOf(lavadaAEditar?.estadoEntrega ?: "Pendiente") }
-    var expandedEntrega by remember { mutableStateOf(false) }
 
     var cantidad by remember { mutableStateOf(lavadaAEditar?.cantidad?.toString() ?: "") }
     var precio by remember { mutableStateOf(lavadaAEditar?.precio?.toString() ?: "") }
@@ -60,7 +62,7 @@ fun PantallaFormularioLavada(
             CenterAlignedTopAppBar(
                 title = { 
                     Text(
-                        if (lavadaAEditar == null) "Nueva Lavada" else "Editar Lavada", 
+                        if (esNueva) "Nueva Lavada" else "Editar Lavada", 
                         fontWeight = FontWeight.Bold 
                     ) 
                 },
@@ -162,15 +164,16 @@ fun PantallaFormularioLavada(
                     value = precio,
                     onValueChange = { precio = it },
                     label = { Text("Precio") },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    enabled = !yaPagado // Una vez pagado, no se puede modificar el precio
                 )
             }
 
             // Estados
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ExposedDropdownMenuBox(
-                    expanded = expandedPago,
-                    onExpandedChange = { expandedPago = !expandedPago },
+                    expanded = expandedPago && !yaPagado,
+                    onExpandedChange = { if (!yaPagado) expandedPago = !expandedPago },
                     modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
@@ -178,33 +181,39 @@ fun PantallaFormularioLavada(
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Pago") },
+                        enabled = !yaPagado, // Una vez pagado, no se puede pasar a pendiente
                         modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
                     )
-                    ExposedDropdownMenu(expanded = expandedPago, onDismissRequest = { expandedPago = false }) {
-                        opcionesPago.forEach { pago ->
-                            DropdownMenuItem(text = { Text(pago) }, onClick = { estadoPagoSeleccionado = pago; expandedPago = false })
+                    if (!yaPagado) {
+                        ExposedDropdownMenu(expanded = expandedPago, onDismissRequest = { expandedPago = false }) {
+                            opcionesPago.forEach { pago ->
+                                DropdownMenuItem(text = { Text(pago) }, onClick = { estadoPagoSeleccionado = pago; expandedPago = false })
+                            }
                         }
                     }
                 }
 
-                ExposedDropdownMenuBox(
-                    expanded = expandedEntrega,
-                    onExpandedChange = { expandedEntrega = !expandedEntrega },
-                    modifier = Modifier.weight(1f)
-                ) {
+                // La entrega no se toca desde aquí si estamos editando (se hace desde el detalle)
+                // Y al crear es automáticamente Pendiente (no se muestra)
+                if (!esNueva) {
                     OutlinedTextField(
                         value = estadoEntregaSeleccionado,
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Entrega") },
-                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
+                        enabled = false,
+                        modifier = Modifier.weight(1f)
                     )
-                    ExposedDropdownMenu(expanded = expandedEntrega, onDismissRequest = { expandedEntrega = false }) {
-                        opcionesEntrega.forEach { entrega ->
-                            DropdownMenuItem(text = { Text(entrega) }, onClick = { estadoEntregaSeleccionado = entrega; expandedEntrega = false })
-                        }
-                    }
                 }
+            }
+            
+            if (yaPagado) {
+                Text(
+                    "Esta lavada ya fue pagada. Para modificar el precio o el estado de pago, debe eliminarla y crear una nueva.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -217,7 +226,7 @@ fun PantallaFormularioLavada(
 
                     if (clienteNombre.isNotBlank() && tipoP.isNotBlank() && cantInt != null && precDouble != null) {
                         scope.launch {
-                            if (lavadaAEditar == null) {
+                            if (esNueva) {
                                 dao.insertarLavada(
                                     Lavada(
                                         cliente = clienteNombre,
@@ -225,20 +234,16 @@ fun PantallaFormularioLavada(
                                         cantidad = cantInt,
                                         precio = precDouble,
                                         estadoPago = estadoPagoSeleccionado,
-                                        estadoEntrega = estadoEntregaSeleccionado
+                                        estadoEntrega = "Pendiente"
                                     )
                                 )
-                            } else {
-                                val antesPagado = lavadaAEditar.estadoPago == "Pagado"
-                                val ahoraPagado = estadoPagoSeleccionado == "Pagado"
-                                
-                                val fechaEntregaFinal = if (estadoEntregaSeleccionado == "Entregada" && lavadaAEditar.fechaEntrega == null) {
-                                    System.currentTimeMillis()
-                                } else if (estadoEntregaSeleccionado == "Pendiente") {
-                                    null
-                                } else {
-                                    lavadaAEditar.fechaEntrega
+                                // Si se crea directamente como pagado, registrar ingreso
+                                if (estadoPagoSeleccionado == "Pagado") {
+                                    dao.insertarMovimiento(Movimiento(concepto = "Pago lavada (Nueva): $clienteNombre", monto = precDouble, tipo = "ingreso"))
                                 }
+                            } else {
+                                val antesPagado = lavadaAEditar!!.estadoPago == "Pagado"
+                                val ahoraPagado = estadoPagoSeleccionado == "Pagado"
 
                                 dao.actualizarLavada(
                                     lavadaAEditar.copy(
@@ -246,20 +251,13 @@ fun PantallaFormularioLavada(
                                         tipoPrenda = tipoP,
                                         cantidad = cantInt,
                                         precio = precDouble,
-                                        estadoPago = estadoPagoSeleccionado,
-                                        estadoEntrega = estadoEntregaSeleccionado,
-                                        fechaEntrega = fechaEntregaFinal
+                                        estadoPago = estadoPagoSeleccionado
                                     )
                                 )
 
-                                // Lógica de movimientos (pago)
-                                when {
-                                    !antesPagado && ahoraPagado -> {
-                                        dao.insertarMovimiento(Movimiento(concepto = "Pago lavada - $clienteNombre", monto = precDouble, tipo = "ingreso"))
-                                    }
-                                    antesPagado && !ahoraPagado -> {
-                                        dao.insertarMovimiento(Movimiento(concepto = "Reversión pago - $clienteNombre", monto = precDouble, tipo = "egreso"))
-                                    }
+                                // Solo registrar ingreso si pasó de Pendiente a Pagado
+                                if (!antesPagado && ahoraPagado) {
+                                    dao.insertarMovimiento(Movimiento(concepto = "Pago lavada: $clienteNombre", monto = precDouble, tipo = "ingreso"))
                                 }
                             }
                             onGuardarExitoso()
@@ -268,7 +266,7 @@ fun PantallaFormularioLavada(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(if (lavadaAEditar == null) "Guardar Lavada" else "Actualizar Lavada")
+                Text(if (esNueva) "Guardar Lavada" else "Actualizar Lavada")
             }
         }
     }
