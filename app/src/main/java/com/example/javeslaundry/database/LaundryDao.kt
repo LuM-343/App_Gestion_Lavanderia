@@ -58,7 +58,15 @@ interface LaundryDao {
     @Query("SELECT * FROM movimientos WHERE tipo = :tipo ORDER BY fecha DESC")
     fun obtenerMovimientosPorTipo(tipo: String): Flow<List<Movimiento>>
 
-    // Conceptos únicos por tipo para autocompletado
+    @Query("SELECT * FROM movimientos WHERE tipo = :tipo AND categoria = :categoria ORDER BY fecha DESC")
+    fun obtenerMovimientosPorTipoYCategoria(tipo: String, categoria: String): Flow<List<Movimiento>>
+
     @Query("SELECT DISTINCT concepto FROM movimientos WHERE tipo = :tipo ORDER BY concepto ASC")
     fun obtenerConceptosPorTipo(tipo: String): Flow<List<String>>
+
+    @Query("SELECT DISTINCT concepto FROM movimientos WHERE tipo = :tipo AND categoria = :categoria ORDER BY concepto ASC")
+    fun obtenerConceptosPorTipoYCategoria(tipo: String, categoria: String): Flow<List<String>>
+
+    @Query("SELECT DISTINCT categoria FROM movimientos WHERE tipo = :tipo ORDER BY categoria ASC")
+    fun obtenerCategoriasPorTipo(tipo: String): Flow<List<String>>
 }

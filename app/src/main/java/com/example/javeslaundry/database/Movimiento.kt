@@ -9,6 +9,8 @@ data class Movimiento(
     val id: Int = 0,
     val fecha: Long = System.currentTimeMillis(),
     val concepto: String,
+    val descripcion: String = "",
     val monto: Double,
-    val tipo: String // "ingreso" o "egreso"
+    val tipo: String,
+    val categoria: String = "General"
 )
